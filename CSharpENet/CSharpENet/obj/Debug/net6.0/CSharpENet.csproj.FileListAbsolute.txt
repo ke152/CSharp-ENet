@@ -1,0 +1,15 @@
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\bin\Debug\net6.0\CSharpENet.exe
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\bin\Debug\net6.0\CSharpENet.deps.json
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\bin\Debug\net6.0\CSharpENet.runtimeconfig.json
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\bin\Debug\net6.0\CSharpENet.dll
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\bin\Debug\net6.0\CSharpENet.pdb
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\obj\Debug\net6.0\CSharpENet.csproj.AssemblyReference.cache
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\obj\Debug\net6.0\CSharpENet.GeneratedMSBuildEditorConfig.editorconfig
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\obj\Debug\net6.0\CSharpENet.AssemblyInfoInputs.cache
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\obj\Debug\net6.0\CSharpENet.AssemblyInfo.cs
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\obj\Debug\net6.0\CSharpENet.csproj.CoreCompileInputs.cache
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\obj\Debug\net6.0\CSharpENet.dll
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\obj\Debug\net6.0\refint\CSharpENet.dll
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\obj\Debug\net6.0\CSharpENet.pdb
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\obj\Debug\net6.0\CSharpENet.genruntimeconfig.cache
+D:\code\98-CSharp-ENet\CSharpENet\CSharpENet\obj\Debug\net6.0\ref\CSharpENet.dll
