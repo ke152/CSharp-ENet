@@ -1,20 +1,21 @@
 ﻿namespace ENet;
 
-enum EMENetPacketFlag
+enum ENetPacketFlag
 {
+    // TODO：if(flags & ENetPacketFlag.Reliable)  报错&结果为int，不能转bool
     //必须由对应peer接收；在确认发出前必须不断重发
-    ENET_PACKET_FLAG_RELIABLE = (1 << 0),
+    Reliable = (1 << 0),
     // 无序；和reliable互斥
-    ENET_PACKET_FLAG_UNSEQUENCED = (1 << 1),
+    UnSeq = (1 << 1),
     // 数据部分由用户提供，程序不会分配内存
-    ENET_PACKET_FLAG_NO_ALLOCATE = (1 << 2),
+    NoAllocate = (1 << 2),
     // 如果超过MTU，数据包会分多个片段以unreliable（代替reliable）发出（TODO：这个替代的逻辑，没注意到）
-    ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT = (1 << 3),
+    UnreliableFragment = (1 << 3),
     // packet在所有队列中的引用都被发出
-    ENET_PACKET_FLAG_SENT = (1 << 8)
+    Sent = (1 << 8)
 }
 
-public class ENetPacket:IDisposable
+public class ENetPacket
 {
     /**
     * An ENet data packet that may be sent to or received from a peer. The shown 
@@ -23,61 +24,33 @@ public class ENetPacket:IDisposable
     * of the allocated data.  The flags field is either 0 (specifying no flags), 
     * or a bitwise-or of any combination of the following flags:
     */
-    public uint RefCount;  /**< internal use only *///TODO: c#引用gc机制，可能不需要这个
     public uint Flags;           /**< bitwise-or of ENetPacketFlag constants */
     public byte[]? Data;            //allocated data for packet
     public uint DataLength;
 
-    public void Dispose()//TODO: 有没有办法手动gc
+    public ENetPacket(byte[]? data, uint dataLength, uint flags)
     {
-        Console.WriteLine("dispose packet");
-        return;
+        if ((flags & (uint)ENetPacketFlag.NoAllocate) != 0)
+        {
+            this.Data = data;
+        }
+        else
+        {
+            if (dataLength <= 0)
+            {
+                this.Data = null;
+            }
+            else
+            {
+                //this.Data = new byte[dataLength];//c#不需要new之后memcpy，直接都是传引用。
+                //TODO: new完之后要不要判空
+                this.Data = data;
+            }
+        }
+        this.Flags = flags;
+        this.DataLength = dataLength;
+
     }
-    //ENetPacketFreeCallback freeCallback;    /**< function to be called when the packet is no longer in use */
-
-    /** @defgroup Packet ENet packet functions 
-        @{ 
-*/
-
-    /** Creates a packet that may be sent to a peer.
-        @param data         initial contents of the packet's data; the packet's data will remain uninitialized if data is NULL.
-        @param dataLength   size of the data allocated for this packet
-        @param flags        flags for this packet as described for the ENetPacket structure.
-        @returns the packet on success, NULL on failure
-*/
-    //    ENetPacket*
-    //    Create(const void* data, size_t dataLength, enet_uint32 flags)
-    //{
-    //    ENetPacket* packet = (ENetPacket*)enet_malloc(sizeof(ENetPacket));
-    //    if (packet == NULL)
-    //      return NULL;
-
-    //    if (flags & ENET_PACKET_FLAG_NO_ALLOCATE)
-    //      packet -> data = (enet_uint8*) data;
-    //    else
-    //    if (dataLength <= 0)
-    //      packet -> data = NULL;
-    //    else
-    //    {
-    //       packet -> data = (enet_uint8*) enet_malloc(dataLength);
-    //       if (packet -> data == NULL)
-    //       {
-    //          enet_free(packet);
-    //          return NULL;
-    //       }
-
-    //       if (data != NULL)
-    //         memcpy(packet -> data, data, dataLength);
-    //    }
-
-    //    packet->referenceCount = 0;
-    //packet->flags = flags;
-    //packet->dataLength = dataLength;
-    //packet->freeCallback = NULL;
-    //packet->userData = NULL;
-
-    //return packet;
-    //}
 
     ///** Destroys the packet and deallocates its data.
     //    @param packet packet to be destroyed
