@@ -1,3 +1,4 @@
 ﻿using ENet;
 
-Console.WriteLine("Hello, World!");
+Console.WriteLine($"TimeGet...{Utils.TimeGet()}");
+Console.WriteLine($"RandomSeed...{Utils.RandomSeed()}");
