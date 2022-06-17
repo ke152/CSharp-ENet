@@ -129,4 +129,18 @@ class ENetSocket
     {
         return socket.Poll(microSecondsTimeout, mode);
     }
+
+    public int Send(byte[] buffer)
+    {
+        return socket.Send(buffer);
+    }
+    public int Receive(byte[] buffer, ref IPEndPoint? ep)
+    {
+        int length = socket.Receive(buffer);
+        ep = socket.RemoteEndPoint as IPEndPoint;
+        return length;
+    }
+
+
+
 }
