@@ -27,22 +27,25 @@ enum ENetSocketOptType
 
 class ENetSocket
 {
-    public Socket? socket;
+    public Socket socket;
+    public IPEndPoint? localIP;
 
     public ENetSocket()
     {
         socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
     }
+    private ENetSocket(Socket socket)
+    {
+        this.socket = socket;
+    }
 
     ~ENetSocket()
     {
-        socket?.Close();
+        socket.Close();
     }
 
     public void SetOption(ENetSocketOptType type, int value)
     {
-        if (socket == null) return;
-
         switch (type)
         {
             case ENetSocketOptType.NonBlock:
@@ -79,22 +82,51 @@ class ENetSocket
 
     public void Shutdown(SocketShutdown how)
     {
-        socket?.Shutdown(how);
+        socket.Shutdown(how);
     }
 
     public void Bind(string ip, int port)
     {
-        socket?.Bind(new IPEndPoint(IPAddress.Parse(ip), port));//TODO：try-catch
+        localIP = new IPEndPoint(IPAddress.Parse(ip), port);
+        socket.Bind(localIP);//TODO：try-catch
     }
-    
+
+    public void Bind(IPEndPoint ep)
+    {
+        socket.Bind(ep);//TODO：try-catch
+        localIP = ep;
+    }
+
     public void Listen(int backlog = 100)
     {
         //TODO: 如果backlog小于0会怎么样？
         //TODO：如果backlog超过SocketOptionName.MaxConnections，会怎样？
         //TODO：是否应该增加try-except模块
         //TODO：使用Listen的无参调用，让socket自己设置。会有什么影响？
-        socket?.Listen(backlog);
+        socket.Listen(backlog);
     }
 
+    public IPEndPoint? GetAddress()
+    {
+        if (localIP == null)
+        {
+            localIP = socket.LocalEndPoint as IPEndPoint;
+        }
+        return localIP;
+    }
 
+    public void Connect(IPEndPoint remoteEP)
+    {
+        socket.Connect(remoteEP);
+    }
+
+    public ENetSocket Accept()
+    {
+        return new ENetSocket(socket.Accept());
+    }
+
+    public bool Wait(Int32 microSecondsTimeout, SelectMode mode)
+    {
+        return socket.Poll(microSecondsTimeout, mode);
+    }
 }
