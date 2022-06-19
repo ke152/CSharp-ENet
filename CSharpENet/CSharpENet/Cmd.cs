@@ -14,22 +14,22 @@ struct ENetAckCmd
 
 struct ENetOutCmd
 {
-    public ushort reliableSequenceNumber;
-    public ushort unreliableSequenceNumber;
+    public uint reliableSequenceNumber;
+    public uint unreliableSequenceNumber;
     public uint sentTime;
     public uint roundTripTimeout;
     public uint roundTripTimeoutLimit;
     public uint fragmentOffset;
-    public ushort fragmentLength;
-    public ushort sendAttempts;
+    public uint fragmentLength;
+    public uint sendAttempts;
     public ENetProto command;
     public ENetPacket packet;
 };
 
 struct ENetInCmd
 {
-    public ushort reliableSeqNumber;
-    public ushort unreliableSeqNumber;
+    public uint reliableSeqNumber;
+    public uint unreliableSeqNumber;
     public ENetProto command;
     public uint fragmentCount;
     public uint fragmentsRemaining;

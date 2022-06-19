@@ -143,7 +143,7 @@ class ENetPeer
         if (startCmd == null || currentCmd == null) return;
 
         for (;
-             ReferenceEquals(currentCmd, channel.inUnreliableCmds.Last?.Next);
+             currentCmd != null && !ReferenceEquals(currentCmd, channel.inUnreliableCmds.Last?.Next);
              currentCmd = currentCmd.Next)//Last.Next不知道最后一个会不会执行
         {
             if (currentCmd == null) break;
@@ -217,6 +217,39 @@ class ENetPeer
         RemoveInCmds(channel.inUnreliableCmds, channel.inUnreliableCmds.First?.Value, droppedCmd?.Value, queuedCmd);
     }
 
+    public void DispatchInReliableCmds(ENetChannel channel, ENetInCmd queuedCmd, ref LinkedList<ENetPeer> hostDispatchQueue)
+    {
+        LinkedListNode<ENetInCmd>? currentCmd = channel.inReliableCmds.First;
+        LinkedListNode<ENetInCmd>? startCmd = currentCmd;
+        if (startCmd == null) return;
+
+        for (;
+             currentCmd != null;
+             currentCmd = currentCmd?.Next)//Last.Next不知道最后一个会不会执行
+        {
+            if (currentCmd.Value.fragmentsRemaining > 0 ||
+                currentCmd.Value.reliableSeqNumber != channel.inReliableSeqNumber + 1)
+                break;
+
+            channel.inReliableSeqNumber = currentCmd.Value.reliableSeqNumber;
+
+            if (currentCmd.Value.fragmentCount > 0)
+                channel.inReliableSeqNumber += currentCmd.Value.fragmentCount - 1;
+        }
+
+        if (currentCmd == null) return;
+           
+        channel.inUnreliableSeqNumber = 0;
+        dispatchedCmds.AddLastRange(startCmd, currentCmd.Previous);
+
+        if (!this.needDispatch)
+        {
+            hostDispatchQueue.AddLast(this);
+            needDispatch = true;
+        }
+
+        DispatchInUnreliableCmds(channel, queuedCmd, hostDispatchQueue);
+    }
 
 }
 

@@ -20,28 +20,29 @@ enum ENetProtoCmdType
 };
 struct ENetProtoHeader
 {
-    public ushort peerID;
-    public ushort sentTime;
+    public uint peerID;
+    public uint sentTime;
+    
 };
 
 struct ENetProtoCmdHeader
 {
     public ENetProtoCmdType command;
     public byte channelID;
-    public ushort ReliableSequenceNumber;
+    public uint ReliableSequenceNumber;
 };
 
 struct ENetProtoAck
 {
     public ENetProtoCmdHeader header;
-    public ushort receivedReliableSequenceNumber;
-    public ushort receivedSentTime;
+    public uint receivedReliableSequenceNumber;
+    public uint receivedSentTime;
 };
 
 struct ENetProtoConnect
 {
     public ENetProtoCmdHeader header;
-    public ushort outgoingPeerID;
+    public uint outgoingPeerID;
     public byte incomingSessionID;
     public byte outgoingSessionID;
     public uint mtu;
@@ -59,7 +60,7 @@ struct ENetProtoConnect
 struct ENetProtoVerifyConnect
 {
     public ENetProtoCmdHeader header;
-    public ushort outgoingPeerID;
+    public uint outgoingPeerID;
     public byte incomingSessionID;
     public byte outgoingSessionID;
     public uint mtu;
@@ -102,28 +103,28 @@ struct ENetProtoPing
 struct ENetProtoSendReliable
 {
     public ENetProtoCmdHeader header;
-    public ushort dataLength;
+    public uint dataLength;
 };
 
 struct ENetProtoSendUnReliable
 {
     public ENetProtoCmdHeader header;
-    public ushort unReliableSequenceNumber;
-    public ushort dataLength;
+    public uint unReliableSequenceNumber;
+    public uint dataLength;
 };
 
 struct ENetProtoSendUnsequenced
 {
     public ENetProtoCmdHeader header;
-    public ushort unsequencedGroup;
-    public ushort dataLength;
+    public uint unsequencedGroup;
+    public uint dataLength;
 };
 
 struct ENetProtoSendFragment
 {
     public ENetProtoCmdHeader header;
-    public ushort startSequenceNumber;
-    public ushort dataLength;
+    public uint startSequenceNumber;
+    public uint dataLength;
     public uint fragmentCount;
     public uint fragmentNumber;
     public uint totalLength;
