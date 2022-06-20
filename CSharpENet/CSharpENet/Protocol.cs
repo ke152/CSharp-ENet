@@ -1,4 +1,6 @@
-﻿namespace ENet;
+﻿using System.Runtime.InteropServices;
+
+namespace ENet;
 
 
 enum ENetProtoCmdType
@@ -18,6 +20,35 @@ enum ENetProtoCmdType
     SendUnreliableFragment= 12,
     Count = 13,
 };
+
+
+static class ENetProtoCmdSize
+{
+    public static List<uint> CmdSize = Init();
+           
+
+    private static List<uint> Init()
+    {
+        List<uint> cmdSizeList = new List<uint>();
+
+        cmdSizeList.Add(0);
+        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoAck())));
+        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoConnect())));
+        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoVerifyConnect())));
+        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoDisconnect())));
+        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoPing())));
+        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoSendReliable())));
+        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoSendUnReliable())));
+        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoSendUnsequenced())));
+        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoSendUnsequenced())));
+        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoBandwidthLimit())));
+        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoThrottleConfigure())));
+        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoSendFragment())));
+
+        return cmdSizeList;
+    }
+};
+
 struct ENetProtoHeader
 {
     public uint peerID;
@@ -29,7 +60,7 @@ struct ENetProtoCmdHeader
 {
     public ENetProtoCmdType command;
     public byte channelID;
-    public uint ReliableSequenceNumber;
+    public uint reliableSeqNum;
 };
 
 struct ENetProtoAck

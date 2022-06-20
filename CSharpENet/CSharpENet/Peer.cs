@@ -12,15 +12,14 @@ class ENetPeer
     // enet_uint8 incomingSessionID;
     // ENetAddress address;            /**< Internet address of the peer */
     // void* data;               /**< Application private data, may be freely modified */
-    public ENetPeerState state;
-    public LinkedList<ENetChannel> channels = new();
-    // size_t channelCount;       /**< Number of channels allocated for communication with peer */
+    public ENetPeerState state = new();
+    public List<ENetChannel> channels = new();
     public uint inBandwidth;  /**< Downstream bandwidth of the client in bytes/second */
     // enet_uint32 outgoingBandwidth;  /**< Upstream bandwidth of the client in bytes/second */
     // enet_uint32 incomingBandwidthThrottleEpoch;
     // enet_uint32 outgoingBandwidthThrottleEpoch;
     // enet_uint32 incomingDataTotal;
-    // enet_uint32 outgoingDataTotal;
+    public uint outDataTotal = 0;
     // enet_uint32 lastSendTime;
     // enet_uint32 lastReceiveTime;
     // enet_uint32 nextTimeout;
@@ -50,7 +49,7 @@ class ENetPeer
     // enet_uint32 mtu;
     // enet_uint32 windowSize;
     // enet_uint32 reliableDataInTransit;
-    // enet_uint16 outgoingReliableSequenceNumber;
+    public uint outReliableSeqNum;
     public LinkedList<ENetAckCmd> ackCmds = new();
     public LinkedList<ENetOutCmd> sentReliableCmds = new();
     public LinkedList<ENetOutCmd> sentUnreliableCmds = new();
@@ -153,14 +152,14 @@ class ENetPeer
             if (inCmd.command.header.command == ENetProtoCmdType.SendUnseq)
                 continue;
 
-            if (inCmd.reliableSeqNumber == channel.inReliableSeqNumber)
+            if (inCmd.reliableSeqNumber == channel.inReliableSeqNum)
             {
                 if (inCmd.fragmentsRemaining <= 0)
                 {
-                    channel.inUnreliableSeqNumber = inCmd.unreliableSeqNumber;
+                    channel.inUnreliableSeqNum = inCmd.unreliableSeqNumber;
                     continue;
                 }
-                
+
                 if (startCmd != currentCmd)
                 {
                     dispatchedCmds.AddLastRange(startCmd, currentCmd.Previous);
@@ -180,8 +179,8 @@ class ENetPeer
             else
             {
                 ushort reliableWindow = (ushort)(inCmd.reliableSeqNumber / (ushort)ENetDef.PeerReliableWindowSize),
-                            currentWindow = (ushort)(channel.inReliableSeqNumber / (ushort)ENetDef.PeerReliableWindowSize);
-                if (inCmd.reliableSeqNumber < channel.inReliableSeqNumber)
+                            currentWindow = (ushort)(channel.inReliableSeqNum / (ushort)ENetDef.PeerReliableWindowSize);
+                if (inCmd.reliableSeqNumber < channel.inReliableSeqNum)
                     reliableWindow += (ushort)ENetDef.PeerReliableWindows;
                 if (reliableWindow >= currentWindow && reliableWindow < currentWindow + (ushort)ENetDef.PeerFreeReliableWindows - 1)
                     break;
@@ -228,18 +227,18 @@ class ENetPeer
              currentCmd = currentCmd?.Next)//Last.Next不知道最后一个会不会执行
         {
             if (currentCmd.Value.fragmentsRemaining > 0 ||
-                currentCmd.Value.reliableSeqNumber != channel.inReliableSeqNumber + 1)
+                currentCmd.Value.reliableSeqNumber != channel.inReliableSeqNum + 1)
                 break;
 
-            channel.inReliableSeqNumber = currentCmd.Value.reliableSeqNumber;
+            channel.inReliableSeqNum = currentCmd.Value.reliableSeqNumber;
 
             if (currentCmd.Value.fragmentCount > 0)
-                channel.inReliableSeqNumber += currentCmd.Value.fragmentCount - 1;
+                channel.inReliableSeqNum += currentCmd.Value.fragmentCount - 1;
         }
 
         if (currentCmd == null) return;
-           
-        channel.inUnreliableSeqNumber = 0;
+
+        channel.inUnreliableSeqNum = 0;
         dispatchedCmds.AddLastRange(startCmd, currentCmd.Previous);
 
         if (!this.needDispatch)
@@ -248,10 +247,125 @@ class ENetPeer
             needDispatch = true;
         }
 
-        DispatchInUnreliableCmds(channel, queuedCmd, hostDispatchQueue);
+        DispatchInUnreliableCmds(channel, queuedCmd, ref hostDispatchQueue);
     }
 
+    public void QueueAck(ENetProto cmd, uint sentTime)
+    {
+        if (cmd.header.channelID < channels.Count)
+        {
+            ENetChannel channel = channels[cmd.header.channelID];
+            uint reliableWindow = cmd.header.reliableSeqNum / Convert.ToUInt32(ENetDef.PeerReliableWindowSize),
+                        currentWindow = channel.inReliableSeqNum / Convert.ToUInt32(ENetDef.PeerReliableWindowSize);
+
+            if (cmd.header.reliableSeqNum < channel.inReliableSeqNum)
+                reliableWindow += Convert.ToUInt32(ENetDef.PeerReliableWindows);
+
+            if (reliableWindow >= currentWindow + Convert.ToUInt32(ENetDef.PeerReliableWindows) - 1 && reliableWindow <= currentWindow + Convert.ToUInt32(ENetDef.PeerReliableWindows))
+                return;
+        }
+
+        ENetAckCmd ack;
+        ack.sentTime = sentTime;
+        ack.command = cmd;
+
+        unsafe
+        {
+            outDataTotal += Convert.ToUInt32(sizeof(ENetAckCmd));
+        }
+
+        ackCmds.AddLast(ack);
+
+    }
+
+    public void QueueOutCmd(ENetProto command, ENetPacket packet, uint offset, uint length)
+    {
+        ENetOutCmd outCmd;
+        {
+            outCmd.command = command;
+            outCmd.fragmentOffset = offset;
+            outCmd.fragmentLength = length;
+            outCmd.packet = packet;
+
+            /*
+        enet_peer_setup_outgoing_command (peer, outgoingCommand);
+             * */
+        }
+    }
+
+    public void SetupOutCmd(ENetOutCmd outCmd)
+    {
+        unsafe
+        {
+            outDataTotal += ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.command.header.command)] + outCmd.fragmentLength;
+        }
+
+        if (outCmd.command.header.channelID == 0xFF)
+        {
+            ++outReliableSeqNum;
+
+            outCmd.reliableSeqNum = outReliableSeqNum;
+            outCmd.unreliableSeqNum = 0;
+        }
+        /*
+         * 
+         * 
+
+else
+{
+    ENetChannel * channel = & peer -> channels [outCmd.command.header.channelID];
+
+    if (outCmd.command.header.command & ENET_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE)
+    {
+       ++ channel -> outReliableSeqNum;
+       channel -> outgoingUnreliableSequenceNumber = 0;
+
+       outCmd.reliableSequenceNumber = channel -> outReliableSeqNum;
+       outCmd.unreliableSequenceNumber = 0;
+    }
+    else
+    if (outCmd.command.header.command & ENET_PROTOCOL_COMMAND_FLAG_UNSEQUENCED)
+    {
+       ++ peer -> outgoingUnsequencedGroup;
+
+       outCmd.reliableSequenceNumber = 0;
+       outCmd.unreliableSequenceNumber = 0;
+    }
+    else
+    {
+       if (outCmd.fragmentOffset == 0)
+         ++ channel -> outgoingUnreliableSequenceNumber;
+
+       outCmd.reliableSequenceNumber = channel -> outReliableSeqNum;
+       outCmd.unreliableSequenceNumber = channel -> outgoingUnreliableSequenceNumber;
+    }
 }
+
+outCmd.sendAttempts = 0;
+outCmd.sentTime = 0;
+outCmd.roundTripTimeout = 0;
+outCmd.roundTripTimeoutLimit = 0;
+outCmd.command.header.reliableSequenceNumber = ENET_HOST_TO_NET_16 (outCmd.reliableSequenceNumber);
+
+switch (outCmd.command.header.command & ENET_PROTOCOL_COMMAND_MASK)
+{
+case ENET_PROTOCOL_COMMAND_SEND_UNRELIABLE:
+    outCmd.command.sendUnreliable.unreliableSequenceNumber = ENET_HOST_TO_NET_16 (outCmd.unreliableSequenceNumber);
+    break;
+
+case ENET_PROTOCOL_COMMAND_SEND_UNSEQUENCED:
+    outCmd.command.sendUnsequenced.unsequencedGroup = ENET_HOST_TO_NET_16 (peer -> outgoingUnsequencedGroup);
+    break;
+
+default:
+    break;
+}
+
+enet_list_insert (enet_list_end (& peer -> outgoingCommands), outgoingCommand);
+         */
+    }
+}
+
 
 struct ENetPeerState
 {

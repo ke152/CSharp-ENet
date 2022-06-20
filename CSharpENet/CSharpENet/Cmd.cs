@@ -14,8 +14,8 @@ struct ENetAckCmd
 
 struct ENetOutCmd
 {
-    public uint reliableSequenceNumber;
-    public uint unreliableSequenceNumber;
+    public uint reliableSeqNum;
+    public uint unreliableSeqNum;
     public uint sentTime;
     public uint roundTripTimeout;
     public uint roundTripTimeoutLimit;
