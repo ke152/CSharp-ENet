@@ -280,17 +280,13 @@ class ENetPeer
 
     public void QueueOutCmd(ENetProto command, ENetPacket packet, uint offset, uint length)
     {
-        ENetOutCmd outCmd;
-        {
-            outCmd.command = command;
-            outCmd.fragmentOffset = offset;
-            outCmd.fragmentLength = length;
-            outCmd.packet = packet;
+        ENetOutCmd outCmd = new();
+        outCmd.command = command;
+        outCmd.fragmentOffset = offset;
+        outCmd.fragmentLength = length;
+        outCmd.packet = packet;
 
-            /*
-        enet_peer_setup_outgoing_command (peer, outgoingCommand);
-             * */
-        }
+        SetupOutCmd(outCmd);
     }
 
     public void SetupOutCmd(ENetOutCmd outCmd)
@@ -307,13 +303,11 @@ class ENetPeer
             outCmd.reliableSeqNum = outReliableSeqNum;
             outCmd.unreliableSeqNum = 0;
         }
-        /*
-         * 
-         * 
-
-else
-{
-    ENetChannel * channel = & peer -> channels [outCmd.command.header.channelID];
+        else
+        {
+            ENetChannel channel = channels[outCmd.command.header.channelID];
+            /*
+             *    
 
     if (outCmd.command.header.command & ENET_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE)
     {
@@ -339,7 +333,14 @@ else
        outCmd.reliableSequenceNumber = channel -> outReliableSeqNum;
        outCmd.unreliableSequenceNumber = channel -> outgoingUnreliableSequenceNumber;
     }
-}
+             */
+
+        }
+        /*
+         * 
+         * 
+
+
 
 outCmd.sendAttempts = 0;
 outCmd.sentTime = 0;
