@@ -3,6 +3,20 @@
 namespace ENet;
 
 
+enum ENetProtocolFlag
+{
+    CmdFlagAck = (1 << 7),
+    CmdFlagUnSeq = (1 << 6),
+
+    HeaderFalgCompressed = (1 << 14),
+    HeaderFalgSentTime = (1 << 15),
+    HeaderFalgMASK = HeaderFalgCompressed | HeaderFalgSentTime,
+
+    HeaderSessionMask = (3 << 12),
+    HeaderSessionShift = 12
+};
+
+
 enum ENetProtoCmdType
 {
     None = 0,
