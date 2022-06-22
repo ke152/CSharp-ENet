@@ -3,10 +3,10 @@
 namespace ENet;
 
 
-enum ENetProtocolFlag
+enum ENetProtoFlag
 {
-    CmdFlagAck = (1 << 7),
     CmdFlagUnSeq = (1 << 6),
+    CmdFlagAck = (1 << 7),
 
     HeaderFalgCompressed = (1 << 14),
     HeaderFalgSentTime = (1 << 15),
@@ -72,7 +72,8 @@ struct ENetProtoHeader
 
 struct ENetProtoCmdHeader
 {
-    public ENetProtoCmdType command;
+    public ENetProtoCmdType cmdType;
+    public ENetProtoFlag protoFlag;
     public byte channelID;
     public uint reliableSeqNum;
 };
@@ -154,7 +155,7 @@ struct ENetProtoSendReliable
 struct ENetProtoSendUnReliable
 {
     public ENetProtoCmdHeader header;
-    public uint unReliableSequenceNumber;
+    public uint unReliableSeqNum;
     public uint dataLength;
 };
 

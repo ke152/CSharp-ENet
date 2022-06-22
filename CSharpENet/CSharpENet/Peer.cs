@@ -1,4 +1,7 @@
-﻿namespace ENet;
+﻿using System.Net;
+using System.Net.Sockets;
+
+namespace ENet;
 
 class ENetPeer
 {
@@ -58,7 +61,7 @@ class ENetPeer
     public bool needDispatch = false;
     // enet_uint16 reserved;
     // enet_uint16 incomingUnsequencedGroup;
-    // enet_uint16 outgoingUnsequencedGroup;
+    uint outUnSeqGroup;
     // enet_uint32 unsequencedWindow[ENET_PEER_UNSEQUENCED_WINDOW_SIZE / 32];
     // enet_uint32 eventData;
     // size_t totalWaitingData;
@@ -149,7 +152,7 @@ class ENetPeer
 
             ENetInCmd inCmd = currentCmd.Value;
 
-            if (inCmd.command.header.command == ENetProtoCmdType.SendUnseq)
+            if (inCmd.command.header.cmdType == ENetProtoCmdType.SendUnseq)
                 continue;
 
             if (inCmd.reliableSeqNumber == channel.inReliableSeqNum)
@@ -293,7 +296,7 @@ class ENetPeer
     {
         unsafe
         {
-            outDataTotal += ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.command.header.command)] + outCmd.fragmentLength;
+            outDataTotal += ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.command.header.cmdType)] + outCmd.fragmentLength;
         }
 
         if (outCmd.command.header.channelID == 0xFF)
@@ -307,67 +310,59 @@ class ENetPeer
         {
             ENetChannel channel = channels[outCmd.command.header.channelID];
 
-            //if (outCmd.command.header.command == ENetProtocolFlag.CmdFlagAck)
-            //{
-            //   ++ channel.outReliableSeqNumber;
-            //   channel.outUnreliableSeqNumber = 0;
+            if (outCmd.command.header.protoFlag == ENetProtoFlag.CmdFlagAck)
+            {
+                ++channel.outReliableSeqNumber;
+                channel.outUnreliableSeqNumber = 0;
 
-            //   outCmd.reliableSeqNum = channel.outReliableSeqNumber;
-            //   outCmd.unreliableSeqNum = 0;
-            //}
-            //else
-            //{
-            //    if (outCmd.command.header.command & ENET_PROTOCOL_COMMAND_FLAG_UNSEQUENCED)
-            //    {
-            //       ++outgoingUnsequencedGroup;
+                outCmd.reliableSeqNum = channel.outReliableSeqNumber;
+                outCmd.unreliableSeqNum = 0;
+            }
+            else
+            {
+                if (outCmd.command.header.protoFlag == ENetProtoFlag.CmdFlagUnSeq)
+                {
+                    ++outUnSeqGroup;
 
-            //       outCmd.reliableSequenceNumber = 0;
-            //       outCmd.unreliableSequenceNumber = 0;
-            //    }
-            //    else
-            //    {
-            //       if (outCmd.fragmentOffset == 0)
-            //         ++ channel -> outgoingUnreliableSequenceNumber;
-
-            //       outCmd.reliableSequenceNumber = channel -> outReliableSeqNum;
-            //       outCmd.unreliableSequenceNumber = channel -> outgoingUnreliableSequenceNumber;
-            //}
-            /*
-             *    
-
+                    outCmd.reliableSeqNum = 0;
+                    outCmd.unreliableSeqNum = 0;
                 }
-             */
+                else
+                {
+                    if (outCmd.fragmentOffset == 0)
+                        ++channel.outUnreliableSeqNumber;
+
+                    outCmd.reliableSeqNum = channel.outReliableSeqNumber;
+                    outCmd.unreliableSeqNum = channel.outUnreliableSeqNumber;
+                }
+            }
 
         }
-        /*
-         * 
-         * 
 
+        outCmd.sendAttempts = 0;
+        outCmd.sentTime = 0;
+        outCmd.roundTripTimeout = 0;
+        outCmd.roundTripTimeoutLimit = 0;
+        outCmd.command.header.reliableSeqNum = Utils.HostToNetOrder(outCmd.reliableSeqNum);
 
+        switch (outCmd.command.header.cmdType)
+        {
+            case ENetProtoCmdType.SendUnreliable:
+                outCmd.command.sendUnReliable.unReliableSeqNum = Utils.HostToNetOrder(outCmd.unreliableSeqNum);
+                break;
 
-outCmd.sendAttempts = 0;
-outCmd.sentTime = 0;
-outCmd.roundTripTimeout = 0;
-outCmd.roundTripTimeoutLimit = 0;
-outCmd.command.header.reliableSequenceNumber = ENET_HOST_TO_NET_16 (outCmd.reliableSequenceNumber);
+            case ENetProtoCmdType.SendUnseq:
+                outCmd.command.sendUnsequenced.unsequencedGroup = Utils.HostToNetOrder(outUnSeqGroup);
+                break;
 
-switch (outCmd.command.header.command & ENET_PROTOCOL_COMMAND_MASK)
-{
-case ENET_PROTOCOL_COMMAND_SEND_UNRELIABLE:
-    outCmd.command.sendUnreliable.unreliableSequenceNumber = ENET_HOST_TO_NET_16 (outCmd.unreliableSequenceNumber);
-    break;
-
-case ENET_PROTOCOL_COMMAND_SEND_UNSEQUENCED:
-    outCmd.command.sendUnsequenced.unsequencedGroup = ENET_HOST_TO_NET_16 (peer -> outgoingUnsequencedGroup);
-    break;
-
-default:
-    break;
-}
-
-enet_list_insert (enet_list_end (& peer -> outgoingCommands), outgoingCommand);
-         */
+            default:
+                break;
+        }
+        outCmds.AddLast(outCmd);
     }
+
+
+
 }
 
 

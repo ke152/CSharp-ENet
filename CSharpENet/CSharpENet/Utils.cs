@@ -1,4 +1,6 @@
-﻿namespace ENet;
+﻿using System.Net;
+
+namespace ENet;
 
 class Utils
 {
@@ -16,6 +18,15 @@ class Utils
     public static uint RandomSeed()
     {
         return (uint)TimeGet();
+    }
+
+    public static uint HostToNetOrder(uint value)
+    {
+        return Convert.ToUInt32(IPAddress.HostToNetworkOrder(value));
+    }
+    public static uint NetToHostOrder(uint value)
+    {
+        return Convert.ToUInt32(IPAddress.NetworkToHostOrder(value));
     }
 }
 
