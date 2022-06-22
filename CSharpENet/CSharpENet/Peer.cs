@@ -306,33 +306,36 @@ class ENetPeer
         else
         {
             ENetChannel channel = channels[outCmd.command.header.channelID];
+
+            //if (outCmd.command.header.command == ENetProtocolFlag.CmdFlagAck)
+            //{
+            //   ++ channel.outReliableSeqNumber;
+            //   channel.outUnreliableSeqNumber = 0;
+
+            //   outCmd.reliableSeqNum = channel.outReliableSeqNumber;
+            //   outCmd.unreliableSeqNum = 0;
+            //}
+            //else
+            //{
+            //    if (outCmd.command.header.command & ENET_PROTOCOL_COMMAND_FLAG_UNSEQUENCED)
+            //    {
+            //       ++outgoingUnsequencedGroup;
+
+            //       outCmd.reliableSequenceNumber = 0;
+            //       outCmd.unreliableSequenceNumber = 0;
+            //    }
+            //    else
+            //    {
+            //       if (outCmd.fragmentOffset == 0)
+            //         ++ channel -> outgoingUnreliableSequenceNumber;
+
+            //       outCmd.reliableSequenceNumber = channel -> outReliableSeqNum;
+            //       outCmd.unreliableSequenceNumber = channel -> outgoingUnreliableSequenceNumber;
+            //}
             /*
              *    
 
-    if (outCmd.command.header.command & ENET_PROTOCOL_COMMAND_FLAG_ACKNOWLEDGE)
-    {
-       ++ channel -> outReliableSeqNum;
-       channel -> outgoingUnreliableSequenceNumber = 0;
-
-       outCmd.reliableSequenceNumber = channel -> outReliableSeqNum;
-       outCmd.unreliableSequenceNumber = 0;
-    }
-    else
-    if (outCmd.command.header.command & ENET_PROTOCOL_COMMAND_FLAG_UNSEQUENCED)
-    {
-       ++ peer -> outgoingUnsequencedGroup;
-
-       outCmd.reliableSequenceNumber = 0;
-       outCmd.unreliableSequenceNumber = 0;
-    }
-    else
-    {
-       if (outCmd.fragmentOffset == 0)
-         ++ channel -> outgoingUnreliableSequenceNumber;
-
-       outCmd.reliableSequenceNumber = channel -> outReliableSeqNum;
-       outCmd.unreliableSequenceNumber = channel -> outgoingUnreliableSequenceNumber;
-    }
+                }
              */
 
         }
