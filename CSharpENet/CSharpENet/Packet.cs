@@ -21,11 +21,11 @@ public class ENetPacket
     * An ENet data packet that may be sent to or received from a peer. The shown 
     * fields should only be read and never modified. 
     */
-    public int Flags;           /**< bitwise-or of ENetPacketFlag constants */
+    public uint Flags;           /**< bitwise-or of ENetPacketFlag constants */
     public byte[]? Data;            //allocated data for packet
     public int DataLength { get { return this.Data == null ? 0 : this.Data.Length; } }
 
-    public ENetPacket(byte[]? data, int flags)
+    public ENetPacket(byte[]? data, uint flags)
     {
         this.Data = data;
         this.Flags = flags;

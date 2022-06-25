@@ -155,7 +155,7 @@ struct ENetProtoSendReliable
 struct ENetProtoSendUnReliable
 {
     public ENetProtoCmdHeader header;
-    public uint unReliableSeqNum;
+    public uint unreliableSeqNum;
     public uint dataLength;
 };
 

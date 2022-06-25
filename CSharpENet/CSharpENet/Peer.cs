@@ -7,7 +7,7 @@ class ENetPeer
 {
 
     // ENetListNode dispatchList;
-    // struct _ENetHost * host;
+    public ENetHost? host;
     //enet_uint16 outgoingPeerID;
     // enet_uint16 incomingPeerID;
     // enet_uint32 connectID;
@@ -15,7 +15,7 @@ class ENetPeer
     // enet_uint8 incomingSessionID;
     // ENetAddress address;            /**< Internet address of the peer */
     // void* data;               /**< Application private data, may be freely modified */
-    public ENetPeerState state = new();
+    public ENetPeerState state;
     public List<ENetChannel> channels = new();
     public uint inBandwidth;  /**< Downstream bandwidth of the client in bytes/second */
     // enet_uint32 outgoingBandwidth;  /**< Upstream bandwidth of the client in bytes/second */
@@ -61,10 +61,10 @@ class ENetPeer
     public bool needDispatch = false;
     // enet_uint16 reserved;
     // enet_uint16 incomingUnsequencedGroup;
-    uint outUnSeqGroup;
+    public uint outUnSeqGroup;
     // enet_uint32 unsequencedWindow[ENET_PEER_UNSEQUENCED_WINDOW_SIZE / 32];
     // enet_uint32 eventData;
-    // size_t totalWaitingData;
+    public uint totalWaitingData;
 
     //TODO:直接Clear不需要进行函数调用
     public void ResetCmds(LinkedList<ENetOutCmd> list)
@@ -111,7 +111,7 @@ class ENetPeer
 
     public void OnConnect(ref uint hostBandwidthLimitedPeers, ref uint hostConnectedPeers)
     {
-        if (!state.Connected && !state.DisconnectLater)
+        if (state != ENetPeerState.Connected && state != ENetPeerState.DisconnectLater)
         {
             if (inBandwidth != 0)
                 ++hostBandwidthLimitedPeers;
@@ -121,7 +121,7 @@ class ENetPeer
     }
     public void OnDisconnect(ref uint hostBandwidthLimitedPeers, ref uint hostConnectedPeers)
     {
-        if (state.Connected || state.DisconnectLater)
+        if (state == ENetPeerState.Connected || state == ENetPeerState.DisconnectLater)
         {
             if (inBandwidth != 0)
             {
@@ -155,11 +155,11 @@ class ENetPeer
             if (inCmd.command.header.cmdType == ENetProtoCmdType.SendUnseq)
                 continue;
 
-            if (inCmd.reliableSeqNumber == channel.inReliableSeqNum)
+            if (inCmd.reliableSeqNum == channel.inReliableSeqNum)
             {
                 if (inCmd.fragmentsRemaining <= 0)
                 {
-                    channel.inUnreliableSeqNum = inCmd.unreliableSeqNumber;
+                    channel.inUnreliableSeqNum = inCmd.unreliableSeqNum;
                     continue;
                 }
 
@@ -181,9 +181,9 @@ class ENetPeer
             }
             else
             {
-                ushort reliableWindow = (ushort)(inCmd.reliableSeqNumber / (ushort)ENetDef.PeerReliableWindowSize),
+                ushort reliableWindow = (ushort)(inCmd.reliableSeqNum / (ushort)ENetDef.PeerReliableWindowSize),
                             currentWindow = (ushort)(channel.inReliableSeqNum / (ushort)ENetDef.PeerReliableWindowSize);
-                if (inCmd.reliableSeqNumber < channel.inReliableSeqNum)
+                if (inCmd.reliableSeqNum < channel.inReliableSeqNum)
                     reliableWindow += (ushort)ENetDef.PeerReliableWindows;
                 if (reliableWindow >= currentWindow && reliableWindow < currentWindow + (ushort)ENetDef.PeerFreeReliableWindows - 1)
                     break;
@@ -230,10 +230,10 @@ class ENetPeer
              currentCmd = currentCmd?.Next)//Last.Next不知道最后一个会不会执行
         {
             if (currentCmd.Value.fragmentsRemaining > 0 ||
-                currentCmd.Value.reliableSeqNumber != channel.inReliableSeqNum + 1)
+                currentCmd.Value.reliableSeqNum != channel.inReliableSeqNum + 1)
                 break;
 
-            channel.inReliableSeqNum = currentCmd.Value.reliableSeqNumber;
+            channel.inReliableSeqNum = currentCmd.Value.reliableSeqNum;
 
             if (currentCmd.Value.fragmentCount > 0)
                 channel.inReliableSeqNum += currentCmd.Value.fragmentCount - 1;
@@ -348,7 +348,7 @@ class ENetPeer
         switch (outCmd.command.header.cmdType)
         {
             case ENetProtoCmdType.SendUnreliable:
-                outCmd.command.sendUnReliable.unReliableSeqNum = Utils.HostToNetOrder(outCmd.unreliableSeqNum);
+                outCmd.command.sendUnReliable.unreliableSeqNum = Utils.HostToNetOrder(outCmd.unreliableSeqNum);
                 break;
 
             case ENetProtoCmdType.SendUnseq:
@@ -363,213 +363,189 @@ class ENetPeer
 
     public ENetInCmd? QueueInCmd(ENetProto cmd, byte[] data, uint dataLength, uint flags, uint fragmentCount)
     {
-        ENetInCmd? dummyCmd;
+        ENetInCmd dummyCmd = new();
 
         ENetChannel channel = channels[cmd.header.channelID];
         uint unreliableSeqNum = 0, reliableSeqNum = 0;
         uint reliableWindow, currentWindow;
         ENetInCmd inCmd;
-        LinkedListNode<ENetInCmd> currentCommand;
+        LinkedListNode<ENetInCmd>? currCmd;
         ENetPacket packet;
-        /*
-         
-ENetIncomingCommand *
-enet_peer_queue_incoming_command (ENetPeer * peer, const ENetProtocol * command, const void * data, size_t dataLength, enet_uint32 flags, enet_uint32 fragmentCount)
+
+        if (state == ENetPeerState.DisconnectLater)
+            goto discardCommand;
+
+        if (cmd.header.cmdType != ENetProtoCmdType.SendUnseq)
+        {
+            reliableSeqNum = cmd.header.reliableSeqNum;
+            reliableWindow = reliableSeqNum / ENetDef.PeerReliableWindowSize;
+            currentWindow = channel.inReliableSeqNum / ENetDef.PeerReliableWindowSize;
+
+            if (reliableSeqNum < channel.inReliableSeqNum)
+                reliableWindow += ENetDef.PeerReliableWindows;
+
+            if (reliableWindow < currentWindow || reliableWindow >= currentWindow + ENetDef.PeerReliableWindows - 1)
+                goto discardCommand;
+        }
+
+
+        switch (cmd.header.cmdType)
+        {
+            case ENetProtoCmdType.SendFragment:
+            case ENetProtoCmdType.SendReliable:
+                if (reliableSeqNum == channel.inReliableSeqNum)
+                    goto discardCommand;
+
+                for (currCmd = channel.inReliableCmds.Last;
+                     currCmd != null;
+                     currCmd = currCmd.Previous)
+                {
+                    inCmd = currCmd.Value;
+
+                    if (reliableSeqNum >= channel.inReliableSeqNum)
+                    {
+                        if (inCmd.reliableSeqNum < channel.inReliableSeqNum)
+                            continue;
+                    }
+                    else
+                    if (inCmd.reliableSeqNum >= channel.inReliableSeqNum)
+                        break;
+
+                    if (inCmd.reliableSeqNum <= reliableSeqNum)
+                    {
+                        if (inCmd.reliableSeqNum < reliableSeqNum)
+                            break;
+
+                        goto discardCommand;
+                    }
+                }
+                break;
+
+            case ENetProtoCmdType.SendUnreliable:
+            case ENetProtoCmdType.SendUnreliableFragment:
+                unreliableSeqNum = Utils.NetToHostOrder(cmd.sendUnReliable.unreliableSeqNum);
+
+                if (reliableSeqNum == channel.inReliableSeqNum &&
+                    unreliableSeqNum <= channel.inUnreliableSeqNum)
+                    goto discardCommand;
+
+                for (currCmd = channel.inUnreliableCmds.Last;
+                     currCmd != null;
+                     currCmd = currCmd.Previous)
+                {
+                    inCmd = currCmd.Value;
+
+                    if (cmd.header.cmdType == ENetProtoCmdType.SendUnreliable)
+                        continue;
+
+                    if (reliableSeqNum >= channel.inReliableSeqNum)
+                    {
+                        if (inCmd.reliableSeqNum < channel.inReliableSeqNum)
+                            continue;
+                    }
+                    else
+                    if (inCmd.reliableSeqNum >= channel.inReliableSeqNum)
+                        break;
+
+                    if (inCmd.reliableSeqNum < reliableSeqNum)
+                        break;
+
+                    if (inCmd.reliableSeqNum > reliableSeqNum)
+                        continue;
+
+                    if (inCmd.unreliableSeqNum <= unreliableSeqNum)
+                    {
+                        if (inCmd.unreliableSeqNum < unreliableSeqNum)
+                            break;
+
+                        goto discardCommand;
+                    }
+                }
+                break;
+
+            case ENetProtoCmdType.SendUnseq:
+                currCmd = channel.inUnreliableCmds.Last;
+                break;
+
+            default:
+                goto discardCommand;
+        }
+
+        if (totalWaitingData >= host?.maximumWaitingData)
+            goto notifyError;
+
+        packet = new ENetPacket(data, flags);
+        if (packet == null)
+            goto notifyError;
+
+        inCmd = new();
+
+        inCmd.reliableSeqNum = cmd.header.reliableSeqNum;
+        inCmd.unreliableSeqNum = unreliableSeqNum & 0xFFFF;
+        inCmd.command = cmd;
+        inCmd.fragmentCount = fragmentCount;
+        inCmd.fragmentsRemaining = fragmentCount;
+        inCmd.packet = packet;
+        inCmd.fragments = null;
+
+        if (fragmentCount > 0 && fragmentCount <= ENetDef.ProtoMaxFragmentCount)
+            inCmd.fragments = new uint[(fragmentCount + 31) / 32];
+
+        if (packet != null && packet.Data != null)
+        {
+            totalWaitingData += Convert.ToUInt32(packet.Data.Length);
+        }
+
+        if (currCmd != null)
+        {
+            channel.inReliableCmds.AddAfter(currCmd, inCmd);
+        }
+
+        switch (cmd.header.cmdType)
+        {
+            case ENetProtoCmdType.SendFragment:
+            case ENetProtoCmdType.SendReliable:
+                DispatchInReliableCmds(channel, inCmd);
+                break;
+            default:
+                DispatchInUnreliableCmds(channel, inCmd);
+                break;
+        }
+
+        return inCmd;
+
+    discardCommand:
+        if (fragmentCount > 0)
+            goto notifyError;
+
+        return dummyCmd;
+
+    notifyError:
+        return null;
+    }
+
+    private void DispatchInUnreliableCmds(ENetChannel channel, ENetInCmd inCmd)
+    {
+        throw new NotImplementedException();
+    }
+
+    private void DispatchInReliableCmds(ENetChannel channel, ENetInCmd inCmd)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+
+enum ENetPeerState
 {
-
-    if (peer -> state == ENET_PEER_STATE_DISCONNECT_LATER)
-      goto discardCommand;
-
-    if ((cmd.header.command & ENET_PROTOCOL_COMMAND_MASK) != ENET_PROTOCOL_COMMAND_SEND_UNSEQUENCED)
-    {
-        reliableSeqNum = cmd.header.reliableSeqNum;
-        reliableWindow = reliableSeqNum / ENET_PEER_RELIABLE_WINDOW_SIZE;
-        currentWindow = channel -> incomingReliableSequenceNumber / ENET_PEER_RELIABLE_WINDOW_SIZE;
-
-        if (reliableSeqNum < channel -> incomingReliableSequenceNumber)
-           reliableWindow += ENET_PEER_RELIABLE_WINDOWS;
-
-        if (reliableWindow < currentWindow || reliableWindow >= currentWindow + ENET_PEER_FREE_RELIABLE_WINDOWS - 1)
-          goto discardCommand;
-    }
-                    
-    switch (cmd.header.command & ENET_PROTOCOL_COMMAND_MASK)
-    {
-    case ENET_PROTOCOL_COMMAND_SEND_FRAGMENT:
-    case ENET_PROTOCOL_COMMAND_SEND_RELIABLE:
-       if (reliableSeqNum == channel -> incomingReliableSequenceNumber)
-         goto discardCommand;
-       
-       for (currentCommand = enet_list_previous (enet_list_end (& channel -> incomingReliableCommands));
-            currentCommand != enet_list_end (& channel -> incomingReliableCommands);
-            currentCommand = enet_list_previous (currentCommand))
-       {
-          incomingCommand = (ENetIncomingCommand *) currentCommand;
-
-          if (reliableSeqNum >= channel -> incomingReliableSequenceNumber)
-          {
-             if (incomingCommand -> reliableSeqNum < channel -> incomingReliableSequenceNumber)
-               continue;
-          }
-          else
-          if (incomingCommand -> reliableSeqNum >= channel -> incomingReliableSequenceNumber)
-            break;
-
-          if (incomingCommand -> reliableSeqNum <= reliableSeqNum)
-          {
-             if (incomingCommand -> reliableSeqNum < reliableSeqNum)
-               break;
-
-             goto discardCommand;
-          }
-       }
-       break;
-
-    case ENET_PROTOCOL_COMMAND_SEND_UNRELIABLE:
-    case ENET_PROTOCOL_COMMAND_SEND_UNRELIABLE_FRAGMENT:
-       unreliableSeqNum = ENET_NET_TO_HOST_16 (cmd.sendUnreliable.unreliableSeqNum);
-
-       if (reliableSeqNum == channel -> incomingReliableSequenceNumber && 
-           unreliableSeqNum <= channel -> incomingUnreliableSeqNum)
-         goto discardCommand;
-
-       for (currentCommand = enet_list_previous (enet_list_end (& channel -> incomingUnreliableCommands));
-            currentCommand != enet_list_end (& channel -> incomingUnreliableCommands);
-            currentCommand = enet_list_previous (currentCommand))
-       {
-          incomingCommand = (ENetIncomingCommand *) currentCommand;
-
-          if ((cmd.header.command & ENET_PROTOCOL_COMMAND_MASK) == ENET_PROTOCOL_COMMAND_SEND_UNSEQUENCED)
-            continue;
-
-          if (reliableSeqNum >= channel -> incomingReliableSequenceNumber)
-          {
-             if (incomingCommand -> reliableSeqNum < channel -> incomingReliableSequenceNumber)
-               continue;
-          }
-          else
-          if (incomingCommand -> reliableSeqNum >= channel -> incomingReliableSequenceNumber)
-            break;
-
-          if (incomingCommand -> reliableSeqNum < reliableSeqNum)
-            break;
-
-          if (incomingCommand -> reliableSeqNum > reliableSeqNum)
-            continue;
-
-          if (incomingCommand -> unreliableSeqNum <= unreliableSeqNum)
-          {
-             if (incomingCommand -> unreliableSeqNum < unreliableSeqNum)
-               break;
-
-             goto discardCommand;
-          }
-       }
-       break;
-
-    case ENET_PROTOCOL_COMMAND_SEND_UNSEQUENCED:
-       currentCommand = enet_list_end (& channel -> incomingUnreliableCommands);
-       break;
-
-    default:
-       goto discardCommand;
-    }
-
-    if (peer -> totalWaitingData >= peer -> host -> maximumWaitingData)
-      goto notifyError;
-
-    packet = enet_packet_create (data, dataLength, flags);
-    if (packet == NULL)
-      goto notifyError;
-
-    incomingCommand = (ENetIncomingCommand *) enet_malloc (sizeof (ENetIncomingCommand));
-    if (incomingCommand == NULL)
-      goto notifyError;
-
-    incomingCommand -> reliableSeqNum = cmd.header.reliableSeqNum;
-    incomingCommand -> unreliableSeqNum = unreliableSeqNum & 0xFFFF;
-    incomingCommand -> command = * command;
-    incomingCommand -> fragmentCount = fragmentCount;
-    incomingCommand -> fragmentsRemaining = fragmentCount;
-    incomingCommand -> packet = packet;
-    incomingCommand -> fragments = NULL;
-    
-    if (fragmentCount > 0)
-    { 
-       if (fragmentCount <= ENET_PROTOCOL_MAXIMUM_FRAGMENT_COUNT)
-         incomingCommand -> fragments = (enet_uint32 *) enet_malloc ((fragmentCount + 31) / 32 * sizeof (enet_uint32));
-       if (incomingCommand -> fragments == NULL)
-       {
-          enet_free (incomingCommand);
-
-          goto notifyError;
-       }
-       memset (incomingCommand -> fragments, 0, (fragmentCount + 31) / 32 * sizeof (enet_uint32));
-    }
-
-    if (packet != NULL)
-    {
-       ++ packet -> referenceCount;
-      
-       peer -> totalWaitingData += packet -> dataLength;
-    }
-
-    enet_list_insert (enet_list_next (currentCommand), incomingCommand);
-
-    switch (cmd.header.command & ENET_PROTOCOL_COMMAND_MASK)
-    {
-    case ENET_PROTOCOL_COMMAND_SEND_FRAGMENT:
-    case ENET_PROTOCOL_COMMAND_SEND_RELIABLE:
-       enet_peer_dispatch_incoming_reliable_commands (peer, channel, incomingCommand);
-       break;
-
-    default:
-       enet_peer_dispatch_incoming_unreliable_commands (peer, channel, incomingCommand);
-       break;
-    }
-
-    return incomingCommand;
-
-discardCommand:
-    if (fragmentCount > 0)
-      goto notifyError;
-
-    if (packet != NULL && packet -> referenceCount == 0)
-      enet_packet_destroy (packet);
-
-    return & dummyCommand;
-
-notifyError:
-    if (packet != NULL && packet -> referenceCount == 0)
-      enet_packet_destroy (packet);
-
-    return NULL;
-}
-
-}
-         */
-    }
-
-
-}
-
-
-struct ENetPeerState
-{
-
-    public bool Disconnected = false;
-    public bool Connecting = false;
-    public bool AckConnect = false;
-    public bool ConnectionPending = false;
-    public bool ConnectionSucceed = false;
-    public bool Connected = false;
-    public bool DisconnectLater = false;
-    public bool Disconnecting = false;
-    public bool Disconnect = false;
-    public bool Zombie = false;
-
-    public ENetPeerState()
-    {
-
-    }
+    Disconnected,
+    Connecting,
+    AckConnect,
+    ConnectionPending,
+    ConnectionSucceed,
+    Connected,
+    DisconnectLater,
+    Disconnecting,
+    Disconnect,
+    Zombie,
 };

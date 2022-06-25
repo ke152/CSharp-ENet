@@ -28,11 +28,11 @@ struct ENetOutCmd
 
 struct ENetInCmd
 {
-    public uint reliableSeqNumber;
-    public uint unreliableSeqNumber;
+    public uint reliableSeqNum;
+    public uint unreliableSeqNum;
     public ENetProto command;
     public uint fragmentCount;
     public uint fragmentsRemaining;
-    public uint[] fragments;
+    public uint[]? fragments;
     public ENetPacket packet;
 };
