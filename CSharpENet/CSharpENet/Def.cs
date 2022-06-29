@@ -12,23 +12,23 @@ class ENetDef
 
     // peer
     public const uint PeerDefaultRTT = 500;
-   public const uint PeerDefaultPacketThrottle = 32;
+    public const uint PeerDefaultPacketThrottle = 32;
     public const uint PeerPacketThrottleScale = 32;
     public const uint PeerPacketThrottleCounter = 7;
     public const uint PeerPacketThrottleAcceleration = 2;
     public const uint PeerPacketThrottleDeceleration = 2;
     public const uint PeerPacketThrottleInterval = 5000;
-  public const uint PeerPacketLossScale = (1 << 16);
-  public const uint PeerPacketLossInterval = 10000;
-   public const uint PeerWindowSizeScale = 64 * 1024;
-   public const uint PeerTimeoutLimit = 32;
-  public const uint PeerTimeoutMin = 5000;
-   public const uint PeerTimeoutMax = 30000;
-  public const uint PeerPingInterval = 500;
+    public const uint PeerPacketLossScale = (1 << 16);
+    public const uint PeerPacketLossInterval = 10000;
+    public const uint PeerWindowSizeScale = 64 * 1024;
+    public const uint PeerTimeoutLimit = 32;
+    public const uint PeerTimeoutMin = 5000;
+    public const uint PeerTimeoutMax = 30000;
+    public const uint PeerPingInterval = 500;
     public const uint PeerUnseqWindows = 64;
-  public const uint PeerUnseqWindowSize = 1024;
-  public const uint PeerFreeUnseqWindows = 32;
-  public const uint PeerReliableWindows = 16;
+    public const uint PeerUnseqWindowSize = 1024;
+    public const uint PeerFreeUnseqWindows = 32;
+    public const uint PeerReliableWindows = 16;
     public const uint PeerReliableWindowSize = 0x1000;
     public const uint PeerFreeReliableWindows = 8;
 

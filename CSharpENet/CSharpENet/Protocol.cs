@@ -33,6 +33,7 @@ enum ENetProtoCmdType
     ThrottleConfig = 11,
     SendUnreliableFragment= 12,
     Count = 13,
+    Mask = 15
 };
 
 
@@ -66,15 +67,13 @@ static class ENetProtoCmdSize
 struct ENetProtoHeader
 {
     public uint peerID;
-    public uint sentTime;
-    
+    public uint sentTime;    
 };
 
 struct ENetProtoCmdHeader
 {
-    public ENetProtoCmdType cmdType;
-    public ENetProtoFlag protoFlag;
-    public byte channelID;
+    public int cmdFlag;
+    public int channelID;
     public uint reliableSeqNum;
 };
 

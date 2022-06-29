@@ -9,7 +9,7 @@ namespace ENet;
 struct ENetAckCmd
 {
     public uint sentTime;
-    public ENetProto command;
+    public ENetProto cmd;
 };
 
 struct ENetOutCmd
@@ -22,7 +22,7 @@ struct ENetOutCmd
     public uint fragmentOffset;
     public uint fragmentLength;
     public uint sendAttempts;
-    public ENetProto command;
+    public ENetProto cmd;
     public ENetPacket packet;
 };
 
@@ -30,7 +30,7 @@ struct ENetInCmd
 {
     public uint reliableSeqNum;
     public uint unreliableSeqNum;
-    public ENetProto command;
+    public ENetProto cmd;
     public uint fragmentCount;
     public uint fragmentsRemaining;
     public uint[]? fragments;

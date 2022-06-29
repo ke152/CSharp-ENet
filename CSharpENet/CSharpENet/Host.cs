@@ -23,7 +23,6 @@ class ENetHost : Singleton<ENetHost>
     // public size_t commandCount;
     // public ENetBuffer buffers[ENET_BUFFER_MAXIMUM];
     // public size_t bufferCount;
-    // public ENetChecksumCallback checksum;                    /**< callback the user can set to enable packet checksums for this host */
     // public ENetCompressor compressor;
     // public enet_uint8 packetData[2][ENET_PROTOCOL_MAXIMUM_MTU];
     //public ENetAddress receivedAddress;
@@ -37,6 +36,6 @@ class ENetHost : Singleton<ENetHost>
     // public size_t connectedPeers;
     // public size_t bandwidthLimitedPeers;
     // public size_t duplicatePeers;              /**< optional number of allowed peers from duplicate IPs, defaults to ENET_PROTOCOL_MAXIMUM_PEER_ID */
-    // public size_t maximumPacketSize;           /**< the maximum allowable packet size that may be sent or received on a peer */
+    public uint maximumPacketSize;           /**< the maximum allowable packet size that may be sent or received on a peer */
     public uint maximumWaitingData;          /**< the maximum aggregate amount of buffer space a peer may use waiting for packets to be delivered */
 }
