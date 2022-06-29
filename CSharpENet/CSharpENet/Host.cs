@@ -1,7 +1,7 @@
 ﻿
 namespace ENet;
 
-class ENetHost
+class ENetHost : Singleton<ENetHost>
 {
     // public ENetSocket socket;
     // public ENetAddress address;                     /**< Internet address of the host */

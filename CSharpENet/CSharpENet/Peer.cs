@@ -133,7 +133,7 @@ class ENetPeer
     }
 
     //TODO：这个函数可能应该交给channel
-    public void DispatchInUnreliableCmds(ENetChannel channel, ENetInCmd queuedCmd, ref LinkedList<ENetPeer> hostDispatchQueue)
+    public void DispatchInUnreliableCmds(ENetChannel channel, ENetInCmd queuedCmd)
     {
         if (channel.inUnreliableCmds.Count == 0) return;
         if (channel.inUnreliableCmds == null) return;
@@ -169,7 +169,7 @@ class ENetPeer
 
                     if (!needDispatch)
                     {
-                        hostDispatchQueue.AddLast(this);
+                        ENetHost.Instance.dispatchQueue.AddLast(this);
                         needDispatch = true;
                     }
 
@@ -196,7 +196,7 @@ class ENetPeer
 
                     if (!needDispatch)
                     {
-                        hostDispatchQueue.AddLast(this);
+                        ENetHost.Instance.dispatchQueue.AddLast(this);
                         needDispatch = true;
                     }
                 }
@@ -209,7 +209,7 @@ class ENetPeer
 
             if (!needDispatch)
             {
-                hostDispatchQueue.AddLast(this);
+                ENetHost.Instance.dispatchQueue.AddLast(this);
                 needDispatch = true;
             }
 
@@ -219,7 +219,7 @@ class ENetPeer
         RemoveInCmds(channel.inUnreliableCmds, channel.inUnreliableCmds.First?.Value, droppedCmd?.Value, queuedCmd);
     }
 
-    public void DispatchInReliableCmds(ENetChannel channel, ENetInCmd queuedCmd, ref LinkedList<ENetPeer> hostDispatchQueue)
+    public void DispatchInReliableCmds(ENetChannel channel, ENetInCmd queuedCmd)
     {
         LinkedListNode<ENetInCmd>? currentCmd = channel.inReliableCmds.First;
         LinkedListNode<ENetInCmd>? startCmd = currentCmd;
@@ -246,11 +246,11 @@ class ENetPeer
 
         if (!this.needDispatch)
         {
-            hostDispatchQueue.AddLast(this);
+            ENetHost.Instance.dispatchQueue.AddLast(this);
             needDispatch = true;
         }
 
-        DispatchInUnreliableCmds(channel, queuedCmd, ref hostDispatchQueue);
+        DispatchInUnreliableCmds(channel, queuedCmd);
     }
 
     public void QueueAck(ENetProto cmd, uint sentTime)
@@ -524,15 +524,7 @@ class ENetPeer
         return null;
     }
 
-    private void DispatchInUnreliableCmds(ENetChannel channel, ENetInCmd inCmd)
-    {
-        throw new NotImplementedException();
-    }
-
-    private void DispatchInReliableCmds(ENetChannel channel, ENetInCmd inCmd)
-    {
-        throw new NotImplementedException();
-    }
+    
 }
 
 
