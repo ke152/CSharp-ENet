@@ -9,62 +9,62 @@ class ENetPeer
 
     // ENetListNode dispatchList;
     public ENetHost? host;
-    //uint outgoingPeerID;
-    // uint incomingPeerID;
-    // uint connectID;
-    // uint outgoingSessionID;
-    // uint incomingSessionID;
+    public uint outgoingPeerID;
+    public uint incomingPeerID;
+    public uint connectID;
+    public uint outgoingSessionID;
+    public uint incomingSessionID;
     // ENetAddress address;            /**< Internet address of the peer */
     // void* data;               /**< Application private data, may be freely modified */
     public ENetPeerState state;
     public List<ENetChannel> channels = new();
-    public uint inBandwidth;  /**< Downstream bandwidth of the client in bytes/second */
-    // uint outgoingBandwidth;  /**< Upstream bandwidth of the client in bytes/second */
-    // uint incomingBandwidthThrottleEpoch;
-    // uint outgoingBandwidthThrottleEpoch;
-    // uint incomingDataTotal;
-    public uint outDataTotal = 0;
-    // uint lastSendTime;
-    // uint lastReceiveTime;
-    // uint nextTimeout;
-    // uint earliestTimeout;
-    // uint packetLossEpoch;
-    // uint packetsSent;
-    // uint packetsLost;
-    // uint packetLoss;          /**< mean packet loss of reliable packets as a ratio with respect to the constant ENET_PEER_PACKET_LOSS_SCALE */
-    // uint packetLossVariance;
-    // uint packetThrottle;
-    // uint packetThrottleLimit;
-    // uint packetThrottleCounter;
-    // uint packetThrottleEpoch;
-    // uint packetThrottleAcceleration;
-    // uint packetThrottleDeceleration;
-    // uint packetThrottleInterval;
-    // uint pingInterval;
-    // uint timeoutLimit;
-    // uint timeoutMinimum;
-    // uint timeoutMaximum;
-    // uint lastRoundTripTime;
-    // uint lowestRoundTripTime;
-    // uint lastRoundTripTimeVariance;
-    // uint highestRoundTripTimeVariance;
-    // uint roundTripTime;            /**< mean round trip time (RTT), in milliseconds, between sending a reliable packet and receiving its acknowledgement */
-    // uint roundTripTimeVariance;
-    uint mtu;
-    // uint windowSize;
-    // uint reliableDataInTransit;
+    public uint incomingBandwidth;  /**< Downstream bandwidth of the client in bytes/second */
+    public uint outgoingBandwidth;  /**< Upstream bandwidth of the client in bytes/second */
+    public uint incomingBandwidthThrottleEpoch;
+    public uint outgoingBandwidthThrottleEpoch;
+    public uint incomingDataTotal;
+    public uint outgoingDataTotal;
+    public uint lastSendTime;
+    public uint lastReceiveTime;
+    public uint nextTimeout;
+    public uint earliestTimeout;
+    public uint packetLossEpoch;
+    public uint packetsSent;
+    public uint packetsLost;
+    public uint packetLoss;          /**< mean packet loss of reliable packets as a ratio with respect to the constant ENET_PEER_PACKET_LOSS_SCALE */
+    public uint packetLossVariance;
+    public uint packetThrottle;
+    public uint packetThrottleLimit;
+    public uint packetThrottleCounter;
+    public uint packetThrottleEpoch;
+    public uint packetThrottleAcceleration;
+    public uint packetThrottleDeceleration;
+    public uint packetThrottleInterval;
+    public uint pingInterval;
+    public uint timeoutLimit;
+    public uint timeoutMinimum;
+    public uint timeoutMaximum;
+    public uint lastRoundTripTime;
+    public uint lowestRoundTripTime;
+    public uint lastRoundTripTimeVariance;
+    public uint highestRoundTripTimeVariance;
+    public uint roundTripTime;            /**< mean round trip time (RTT), in milliseconds, between sending a reliable packet and receiving its acknowledgement */
+    public uint roundTripTimeVariance;
+    public uint mtu;
+    public uint windowSize;
+    public uint reliableDataInTransit;
     public uint outReliableSeqNum;
     public LinkedList<ENetAckCmd> ackCmds = new();
     public LinkedList<ENetOutCmd> sentReliableCmds = new();
     public LinkedList<ENetOutCmd> sentUnreliableCmds = new();
     public LinkedList<ENetOutCmd> outCmds = new();
     public LinkedList<ENetInCmd> dispatchedCmds = new();
-    public bool needDispatch = false;
-    // uint reserved;
-    // uint incomingUnsequencedGroup;
+    public bool needDispatch = false;//flags
+    public uint reserved;
+    public uint incomingUnsequencedGroup;
     public uint outUnSeqGroup;
-    // uint unsequencedWindow[ENET_PEER_UNSEQUENCED_WINDOW_SIZE / 32];
-    // uint eventData;
+    public uint[] unsequencedWindow = new uint[ENetDef.PeerUnseqWindowSize / 32];
+    public uint eventData;
     public uint totalWaitingData;
 
     //TODO:直接Clear不需要进行函数调用
@@ -115,21 +115,21 @@ class ENetPeer
         if (state != ENetPeerState.Connected && state != ENetPeerState.DisconnectLater)
         {
             if (inBandwidth != 0)
-                ++hostBandwidthLimitedPeers;
+                ++ENetHost.Instance.bandwidthLimitedPeers;
 
-            ++hostConnectedPeers;
+            ++ENetHost.Instance.connectedPeers;
         }
     }
-    public void OnDisconnect(ref uint hostBandwidthLimitedPeers, ref uint hostConnectedPeers)
+    public void OnDisconnect()
     {
         if (state == ENetPeerState.Connected || state == ENetPeerState.DisconnectLater)
         {
             if (inBandwidth != 0)
             {
-                hostBandwidthLimitedPeers--;
+                ENetHost.Instance.bandwidthLimitedPeers--;
             }
 
-            hostConnectedPeers--;
+            ENetHost.Instance.connectedPeers--;
         }
     }
 
@@ -632,6 +632,86 @@ class ENetPeer
         
         return 0;
     }
+
+    public ENetPacket? Receive(ref int channelID)
+    {
+           ENetInCmd inCmd;
+           ENetPacket? packet;
+   
+           if (this.dispatchedCmds.Count == 0 || this.dispatchedCmds.First == null)
+             return null;
+
+           inCmd = this.dispatchedCmds.First.Value;
+
+           channelID = inCmd.cmd.header.channelID;
+
+           packet = inCmd.packet;
+
+           this.totalWaitingData -= packet.DataLength;
+        
+        return packet;
+    }
+
+    public void Reset()
+    {
+        OnDisconnect();
+
+        this.outgoingPeerID = ENetDef.ProtoMaxPeerID;
+        this.connectID = 0;
+
+        this.state = ENetPeerState.Disconnected;
+
+        this.incomingBandwidth = 0;
+        this.outgoingBandwidth = 0;
+        this.incomingBandwidthThrottleEpoch = 0;
+        this.outgoingBandwidthThrottleEpoch = 0;
+        this.incomingDataTotal = 0;
+        this.outgoingDataTotal = 0;
+        this.lastSendTime = 0;
+        this.lastReceiveTime = 0;
+        this.nextTimeout = 0;
+        this.earliestTimeout = 0;
+        this.packetLossEpoch = 0;
+        this.packetsSent = 0;
+        this.packetsLost = 0;
+        this.packetLoss = 0;
+        this.packetLossVariance = 0;
+        this.packetThrottle = ENetDef.PeerDefaultPacketThrottle;
+        this.packetThrottleLimit = ENetDef.PeerPacketThrottleScale;
+        this.packetThrottleCounter = 0;
+        this.packetThrottleEpoch = 0;
+        this.packetThrottleAcceleration = ENetDef.PeerPacketThrottleAcceleration;
+        this.packetThrottleDeceleration = ENetDef.PeerPacketThrottleDeceleration;
+        this.packetThrottleInterval = ENetDef.PeerPacketThrottleInterval;
+        this.pingInterval = ENetDef.PeerPingInterval;
+        this.timeoutLimit = ENetDef.PeerTimeoutLimit;
+        this.timeoutMinimum = ENetDef.PeerTimeoutMin;
+        this.timeoutMaximum = ENetDef.PeerTimeoutMax; 
+        this.lastRoundTripTime = ENetDef.PeerDefaultRTT;
+        this.lowestRoundTripTime = ENetDef.PeerDefaultRTT;
+        this.lastRoundTripTimeVariance = 0;
+        this.highestRoundTripTimeVariance = 0;
+        this.roundTripTime = ENetDef.PeerDefaultRTT;
+        this.roundTripTimeVariance = 0;
+        this.mtu = ENetHost.Instance.mtu;
+        this.reliableDataInTransit = 0;
+        this.outReliableSeqNum = 0;
+        this.windowSize = ENetDef.ProtoMaxWindowSize;
+        this.incomingUnsequencedGroup = 0;
+        this.outUnSeqGroup = 0;
+        this.eventData = 0;
+        this.totalWaitingData = 0;
+        this.needDispatch = false;
+
+        Array.Clear(this.unsequencedWindow);
+
+        ResetQueues();
+    }
+
+
+
+
+
 }
 
 
