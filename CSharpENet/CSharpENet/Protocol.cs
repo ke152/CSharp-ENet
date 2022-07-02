@@ -72,7 +72,7 @@ struct ENetProtoHeader
 
 struct ENetProtoCmdHeader
 {
-    public int cmdFlag;
+    public int command;
     public int channelID;
     public uint reliableSeqNum;
 };
