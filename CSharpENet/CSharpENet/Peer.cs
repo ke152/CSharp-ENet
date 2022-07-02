@@ -114,7 +114,7 @@ class ENetPeer
     {
         if (state != ENetPeerState.Connected && state != ENetPeerState.DisconnectLater)
         {
-            if (inBandwidth != 0)
+            if (incomingBandwidth != 0)
                 ++ENetHost.Instance.bandwidthLimitedPeers;
 
             ++ENetHost.Instance.connectedPeers;
@@ -124,7 +124,7 @@ class ENetPeer
     {
         if (state == ENetPeerState.Connected || state == ENetPeerState.DisconnectLater)
         {
-            if (inBandwidth != 0)
+            if (incomingBandwidth != 0)
             {
                 ENetHost.Instance.bandwidthLimitedPeers--;
             }
@@ -153,7 +153,7 @@ class ENetPeer
 
             ENetInCmd inCmd = currentCmd.Value;
 
-            if ((inCmd.cmd.header.cmdFlag & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.SendUnseq)
+            if ((inCmd.cmd.header.command & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.SendUnseq)
                 continue;
 
             if (inCmd.reliableSeqNum == channel.inReliableSeqNum)
@@ -275,14 +275,14 @@ class ENetPeer
 
         unsafe
         {
-            outDataTotal += Convert.ToUInt32(sizeof(ENetAckCmd));
+            this.outgoingDataTotal += Convert.ToUInt32(sizeof(ENetAckCmd));
         }
 
         ackCmds.AddLast(ack);
 
     }
 
-    public void QueueOutCmd(ENetProto cmd, ENetPacket packet, uint offset, uint length)
+    public void QueueOutCmd(ENetProto cmd, ENetPacket? packet, uint offset, uint length)
     {
         ENetOutCmd outCmd = new();
         outCmd.cmd = cmd;
@@ -297,7 +297,7 @@ class ENetPeer
     {
         unsafe
         {
-            outDataTotal += ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.cmd.header.cmdFlag&(int)ENetProtoCmdType.Mask)] + outCmd.fragmentLength;
+            outgoingDataTotal += ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.cmd.header.command&(int)ENetProtoCmdType.Mask)] + outCmd.fragmentLength;
         }
 
         if (outCmd.cmd.header.channelID == 0xFF)
@@ -311,7 +311,7 @@ class ENetPeer
         {
             ENetChannel channel = channels[outCmd.cmd.header.channelID];
 
-            if ((outCmd.cmd.header.cmdFlag & (int)ENetProtoFlag.CmdFlagAck) != 0)
+            if ((outCmd.cmd.header.command & (int)ENetProtoFlag.CmdFlagAck) != 0)
             {
                 ++channel.outReliableSeqNumber;
                 channel.outUnreliableSeqNum = 0;
@@ -321,7 +321,7 @@ class ENetPeer
             }
             else
             {
-                if ((outCmd.cmd.header.cmdFlag & (int)ENetProtoFlag.CmdFlagUnSeq) != 0)
+                if ((outCmd.cmd.header.command & (int)ENetProtoFlag.CmdFlagUnSeq) != 0)
                 {
                     ++outUnSeqGroup;
 
@@ -346,7 +346,7 @@ class ENetPeer
         outCmd.roundTripTimeoutLimit = 0;
         outCmd.cmd.header.reliableSeqNum = Utils.HostToNetOrder(outCmd.reliableSeqNum);
 
-        switch (outCmd.cmd.header.cmdFlag & (int)ENetProtoCmdType.Mask)
+        switch (outCmd.cmd.header.command & (int)ENetProtoCmdType.Mask)
         {
             case (int)ENetProtoCmdType.SendUnreliable:
                 outCmd.cmd.sendUnReliable.unreliableSeqNum = Utils.HostToNetOrder(outCmd.unreliableSeqNum);
@@ -376,7 +376,7 @@ class ENetPeer
         if (state == ENetPeerState.DisconnectLater)
             goto discardcmd;
 
-        if ((cmd.header.cmdFlag & (int)ENetProtoCmdType.SendUnseq) != 0)
+        if ((cmd.header.command & (int)ENetProtoCmdType.SendUnseq) != 0)
         {
             reliableSeqNum = cmd.header.reliableSeqNum;
             reliableWindow = reliableSeqNum / ENetDef.PeerReliableWindowSize;
@@ -390,7 +390,7 @@ class ENetPeer
         }
 
 
-        switch (cmd.header.cmdFlag & (int)ENetProtoCmdType.Mask)
+        switch (cmd.header.command & (int)ENetProtoCmdType.Mask)
         {
             case (int)ENetProtoCmdType.SendFragment:
             case (int)ENetProtoCmdType.SendReliable:
@@ -436,7 +436,7 @@ class ENetPeer
                 {
                     inCmd = currCmd.Value;
 
-                    if ((cmd.header.cmdFlag & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.SendUnreliable)
+                    if ((cmd.header.command & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.SendUnreliable)
                         continue;
 
                     if (reliableSeqNum >= channel.inReliableSeqNum)
@@ -502,7 +502,7 @@ class ENetPeer
             channel.inReliableCmds.AddAfter(currCmd, inCmd);
         }
 
-        switch (cmd.header.cmdFlag & (int)ENetProtoCmdType.Mask)
+        switch (cmd.header.command & (int)ENetProtoCmdType.Mask)
         {
             case (int)ENetProtoCmdType.SendFragment:
             case (int)ENetProtoCmdType.SendReliable:
@@ -582,7 +582,7 @@ class ENetPeer
                 fragment.fragmentOffset = fragmentOffset;
                 fragment.fragmentLength = fragmentLength;
                 fragment.packet = packet;
-                fragment.cmd.header.cmdFlag = cmdNum;
+                fragment.cmd.header.command = cmdNum;
                 fragment.cmd.header.channelID = channelID;
                 fragment.cmd.sendFragment.startSequenceNumber = startSequenceNumber;
                 fragment.cmd.sendFragment.dataLength = (uint)IPAddress.HostToNetworkOrder(fragmentLength);
@@ -611,19 +611,19 @@ class ENetPeer
 
         if ((packet.Flags & ((int)ENetPacketFlag.Reliable | (int)ENetPacketFlag.UnSeq)) == (int)ENetPacketFlag.UnSeq)
         {
-            cmd.header.cmdFlag = (int)ENetProtoCmdType.SendUnseq | (int)ENetProtoFlag.CmdFlagUnSeq;
+            cmd.header.command = (int)ENetProtoCmdType.SendUnseq | (int)ENetProtoFlag.CmdFlagUnSeq;
             cmd.sendUnsequenced.dataLength = (uint)IPAddress.HostToNetworkOrder(packet.DataLength);
         }
         else
         {
             if ((packet.Flags & (int)ENetPacketFlag.Reliable) != 0 || channel.outUnreliableSeqNum >= 0xFFFF)
             {
-                cmd.header.cmdFlag = (int)ENetProtoCmdType.SendReliable | (int)ENetProtoFlag.CmdFlagAck;
+                cmd.header.command = (int)ENetProtoCmdType.SendReliable | (int)ENetProtoFlag.CmdFlagAck;
                 cmd.sendReliable.dataLength = (uint)IPAddress.HostToNetworkOrder(packet.DataLength);
             }
             else
             {
-                cmd.header.cmdFlag = (int)ENetProtoCmdType.SendReliable;
+                cmd.header.command = (int)ENetProtoCmdType.SendReliable;
                 cmd.sendReliable.dataLength = (uint)IPAddress.HostToNetworkOrder(packet.DataLength);
             }
         }
@@ -708,8 +708,150 @@ class ENetPeer
         ResetQueues();
     }
 
+    public void Ping()
+    {
+            ENetProto command = new ENetProto();
 
+            if (this.state != ENetPeerState.Connected)
+                return;
 
+            command.header.command = (int)ENetProtoCmdType.Ping | (int)ENetProtoFlag.CmdFlagAck;
+            command.header.channelID = 0xFF;
+
+            QueueOutCmd(command, null, 0, 0);
+    }
+
+    public void PingInterval(uint pingInterval)
+    {
+        this.pingInterval = pingInterval != 0 ? pingInterval : ENetDef.PeerPingInterval;
+    }
+
+    public void Timeout(uint timeoutLimit, uint timeoutMinimum, uint timeoutMaximum)
+    {
+        this.timeoutLimit = timeoutLimit !=0 ? timeoutLimit : ENetDef.PeerTimeoutLimit;
+        this.timeoutMinimum = timeoutMinimum != 0 ? timeoutMinimum : ENetDef.PeerTimeoutMin;
+        this.timeoutMaximum = timeoutMaximum != 0 ? timeoutMaximum : ENetDef.PeerTimeoutMax;
+    }
+
+    public void Disconnect(uint data)
+    {
+        ENetProto command = new ENetProto();
+
+        if (this.state == ENetPeerState.Disconnecting ||
+            this.state == ENetPeerState.Disconnected ||
+            this.state == ENetPeerState.AckDisconnect ||
+            this.state == ENetPeerState.Zombie)
+            return;
+
+        ResetQueues();
+
+        command.header.command = (int)ENetProtoCmdType.Disconnect;
+        command.header.channelID = 0xFF;
+        command.disconnect.data = (uint)IPAddress.HostToNetworkOrder(data);
+
+        if (this.state == ENetPeerState.Connected || this.state == ENetPeerState.DisconnectLater)
+            command.header.command |= (int)ENetProtoFlag.CmdFlagAck;
+        else
+            command.header.command |= (int)ENetProtoFlag.CmdFlagUnSeq;
+
+        QueueOutCmd(command, null, 0, 0);
+
+        if (this.state == ENetPeerState.Connected || this.state == ENetPeerState.DisconnectLater)
+        {
+            OnDisconnect();
+
+            this.state = ENetPeerState.Disconnecting;
+        }
+        else
+        {
+            ENetHost.Instance.Flush();
+            Reset();
+        }
+    }
+
+    public void DisconnectNow(uint data)
+    {
+        ENetProto command = new ENetProto();
+
+        if (this.state == ENetPeerState.Disconnected)
+            return;
+
+        if (this.state != ENetPeerState.Zombie &&
+            this.state != ENetPeerState.Disconnecting)
+        {
+            ResetQueues();
+
+            command.header.command = (int)ENetProtoCmdType.Disconnect | (int)ENetProtoFlag.CmdFlagUnSeq;
+            command.header.channelID = 0xFF;
+            command.disconnect.data = (uint)IPAddress.HostToNetworkOrder(data); 
+
+            QueueOutCmd(command, null, 0, 0);
+
+            ENetHost.Instance.Flush();
+        }
+
+        Reset();
+    }
+
+    public void DisconnectLater(uint data)
+    {
+        if ((this.state == ENetPeerState.Connected || this.state == ENetPeerState.DisconnectLater) &&
+            this.outCmds.Count != 0 && this.sentReliableCmds.Count == 0)
+        {
+            this.state = ENetPeerState.DisconnectLater;
+            this.eventData = data;
+        }
+        else
+            Disconnect(data);
+    }
+
+    public void ThrottleConfigure(uint interval, uint acceleration, uint deceleration)
+    {
+        ENetProto command = new ENetProto();
+
+        this.packetThrottleInterval = interval;
+        this.packetThrottleAcceleration = acceleration;
+        this.packetThrottleDeceleration = deceleration;
+
+        command.header.command = (int)ENetProtoCmdType.ThrottleConfig | (int)ENetProtoFlag.CmdFlagAck;
+        command.header.channelID = 0xFF;
+
+        command.throttleConfigure.packetThrottleInterval = (uint)IPAddress.HostToNetworkOrder(interval);
+        command.throttleConfigure.packetThrottleAcceleration = (uint)IPAddress.HostToNetworkOrder(acceleration);
+        command.throttleConfigure.packetThrottleDeceleration = (uint)IPAddress.HostToNetworkOrder(deceleration);
+
+        QueueOutCmd(command, null, 0, 0);
+    }
+    
+    public int Throttle(uint rtt)
+    {
+        if (this.lastRoundTripTime <= this.lastRoundTripTimeVariance)
+        {
+            this.packetThrottle = this.packetThrottleLimit;
+        }
+        else
+        if (rtt <= this.lastRoundTripTime)
+        {
+            this.packetThrottle += this.packetThrottleAcceleration;
+
+            if (this.packetThrottle > this.packetThrottleLimit)
+                this.packetThrottle = this.packetThrottleLimit;
+
+            return 1;
+        }
+        else
+        if (rtt > this.lastRoundTripTime + 2 * this.lastRoundTripTimeVariance)
+        {
+            if (this.packetThrottle > this.packetThrottleDeceleration)
+                this.packetThrottle -= this.packetThrottleDeceleration;
+            else
+                this.packetThrottle = 0;
+
+            return -1;
+        }
+
+        return 0;
+    }
 
 
 }
@@ -725,6 +867,6 @@ enum ENetPeerState
     Connected,
     DisconnectLater,
     Disconnecting,
-    Disconnect,
+    AckDisconnect,
     Zombie,
 };
