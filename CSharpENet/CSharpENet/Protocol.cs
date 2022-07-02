@@ -64,27 +64,45 @@ static class ENetProtoCmdSize
     }
 };
 
-struct ENetProtoHeader
+class ENetProtoHeader
 {
     public uint peerID;
     public uint sentTime;    
 };
 
-struct ENetProtoCmdHeader
+class ENetProtoCmdHeader
 {
     public int command;
-    public int channelID;
+    public uint channelID;
     public uint reliableSeqNum;
 };
 
-struct ENetProtoAck
+class ENetProtoAck
 {
     public ENetProtoCmdHeader header;
     public uint receivedReliableSequenceNumber;
     public uint receivedSentTime;
 };
 
-struct ENetProtoConnect
+class ENetProtoConnect
+{
+    public ENetProtoCmdHeader header;
+    public uint outgoingPeerID;
+    public uint incomingSessionID;
+    public uint outgoingSessionID;
+    public uint mtu;
+    public uint windowSize;
+    public uint channelCount;
+    public uint incomingBandwidth;
+    public uint outgoingBandwidth;
+    public uint packetThrottleInterval;
+    public uint packetThrottleAcceleration;
+    public uint packetThrottleDeceleration;
+    public uint connectID;
+    public uint data;
+};
+
+class ENetProtoVerifyConnect
 {
     public ENetProtoCmdHeader header;
     public uint outgoingPeerID;
@@ -99,34 +117,16 @@ struct ENetProtoConnect
     public uint packetThrottleAcceleration;
     public uint packetThrottleDeceleration;
     public uint connectID;
-    public uint data;
 };
 
-struct ENetProtoVerifyConnect
-{
-    public ENetProtoCmdHeader header;
-    public uint outgoingPeerID;
-    public byte incomingSessionID;
-    public byte outgoingSessionID;
-    public uint mtu;
-    public uint windowSize;
-    public uint channelCount;
-    public uint incomingBandwidth;
-    public uint outgoingBandwidth;
-    public uint packetThrottleInterval;
-    public uint packetThrottleAcceleration;
-    public uint packetThrottleDeceleration;
-    public uint connectID;
-};
-
-struct ENetProtoBandwidthLimit
+class ENetProtoBandwidthLimit
 {
     public ENetProtoCmdHeader header;
     public uint incomingBandwidth;
     public uint outgoingBandwidth;
 };
 
-struct ENetProtoThrottleConfigure
+class ENetProtoThrottleConfigure
 {
     public ENetProtoCmdHeader header;
     public uint packetThrottleInterval;
@@ -134,38 +134,38 @@ struct ENetProtoThrottleConfigure
     public uint packetThrottleDeceleration;
 };
 
-struct ENetProtoDisconnect
+class ENetProtoDisconnect
 {
     public ENetProtoCmdHeader header;
     public uint data;
 };
 
-struct ENetProtoPing
+class ENetProtoPing
 {
     public ENetProtoCmdHeader header;
 };
 
-struct ENetProtoSendReliable
+class ENetProtoSendReliable
 {
     public ENetProtoCmdHeader header;
     public uint dataLength;
 };
 
-struct ENetProtoSendUnReliable
+class ENetProtoSendUnReliable
 {
     public ENetProtoCmdHeader header;
     public uint unreliableSeqNum;
     public uint dataLength;
 };
 
-struct ENetProtoSendUnsequenced
+class ENetProtoSendUnsequenced
 {
     public ENetProtoCmdHeader header;
     public uint unsequencedGroup;
     public uint dataLength;
 };
 
-struct ENetProtoSendFragment
+class ENetProtoSendFragment
 {
     public ENetProtoCmdHeader header;
     public uint startSequenceNumber;
@@ -176,7 +176,7 @@ struct ENetProtoSendFragment
     public uint fragmentOffset;
 };
 
-struct ENetProto
+class ENetProto
 {
     public ENetProtoCmdHeader header;
     public ENetProtoAck acknowledge;
