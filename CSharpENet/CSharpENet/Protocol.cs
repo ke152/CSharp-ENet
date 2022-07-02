@@ -106,8 +106,8 @@ class ENetProtoVerifyConnect
 {
     public ENetProtoCmdHeader header;
     public uint outgoingPeerID;
-    public byte incomingSessionID;
-    public byte outgoingSessionID;
+    public uint incomingSessionID;
+    public uint outgoingSessionID;
     public uint mtu;
     public uint windowSize;
     public uint channelCount;
