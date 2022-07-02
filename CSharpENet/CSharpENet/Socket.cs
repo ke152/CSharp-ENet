@@ -25,6 +25,14 @@ enum ENetSocketOptType
     NoDelay = 9
 }
 
+enum ENetSocketWait
+{
+    None = 0,
+    Send = (1 << 0),
+    Recv = (1 << 1),
+    Interrupt = (1 << 2)
+};
+
 class ENetSocket
 {
     public Socket socket;
