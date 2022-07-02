@@ -23,7 +23,7 @@ class ENetPeer
         get 
         {
             return this.channels == null ? 0 : this.channels.Length;
-        } 
+        }
     }
     public uint incomingBandwidth;  /**< Downstream bandwidth of the client in bytes/second */
     public uint outgoingBandwidth;  /**< Upstream bandwidth of the client in bytes/second */
@@ -289,7 +289,7 @@ class ENetPeer
 
     }
 
-    public void QueueOutCmd(ENetProto cmd, ENetPacket? packet, uint offset, uint length)
+    public void QueueOutgoingCommand(ENetProto cmd, ENetPacket? packet, uint offset, uint length)
     {
         ENetOutCmd outCmd = new();
         outCmd.command = cmd;
@@ -635,7 +635,7 @@ class ENetPeer
             }
         }
 
-        QueueOutCmd(cmd, packet, 0, packet.DataLength);
+        QueueOutgoingCommand(cmd, packet, 0, packet.DataLength);
         
         return 0;
     }
@@ -725,7 +725,7 @@ class ENetPeer
             command.header.command = (int)ENetProtoCmdType.Ping | (int)ENetProtoFlag.CmdFlagAck;
             command.header.channelID = 0xFF;
 
-            QueueOutCmd(command, null, 0, 0);
+            QueueOutgoingCommand(command, null, 0, 0);
     }
 
     public void PingInterval(uint pingInterval)
@@ -761,7 +761,7 @@ class ENetPeer
         else
             command.header.command |= (int)ENetProtoFlag.CmdFlagUnSeq;
 
-        QueueOutCmd(command, null, 0, 0);
+        QueueOutgoingCommand(command, null, 0, 0);
 
         if (this.state == ENetPeerState.Connected || this.state == ENetPeerState.DisconnectLater)
         {
@@ -792,7 +792,7 @@ class ENetPeer
             command.header.channelID = 0xFF;
             command.disconnect.data = (uint)IPAddress.HostToNetworkOrder(data); 
 
-            QueueOutCmd(command, null, 0, 0);
+            QueueOutgoingCommand(command, null, 0, 0);
 
             ENetHost.Instance.Flush();
         }
@@ -827,7 +827,7 @@ class ENetPeer
         command.throttleConfigure.packetThrottleAcceleration = (uint)IPAddress.HostToNetworkOrder(acceleration);
         command.throttleConfigure.packetThrottleDeceleration = (uint)IPAddress.HostToNetworkOrder(deceleration);
 
-        QueueOutCmd(command, null, 0, 0);
+        QueueOutgoingCommand(command, null, 0, 0);
     }
     
     public int Throttle(uint rtt)
