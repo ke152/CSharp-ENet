@@ -43,4 +43,7 @@ class ENetDef
     public const uint ProtoMaxPeerID = 0xFFF;
     public const uint ProtoMaxFragmentCount = 1024 * 1024;
 
+    //buffer
+    public const uint BufferMax = 1 + 2 * ProtoMaxPacketCmds;
+
 };
