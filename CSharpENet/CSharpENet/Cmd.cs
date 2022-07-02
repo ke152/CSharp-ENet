@@ -6,15 +6,15 @@ using System.Threading.Tasks;
 
 namespace ENet;
 
-struct ENetAckCmd
+class ENetAckCmd
 {
     public uint sentTime;
     public ENetProto cmd;
 };
 
-struct ENetOutCmd
+class ENetOutCmd
 {
-    public uint reliableSeqNum;
+    public uint reliableSequenceNumber;
     public uint unreliableSeqNum;
     public uint sentTime;
     public uint roundTripTimeout;
@@ -22,7 +22,7 @@ struct ENetOutCmd
     public uint fragmentOffset;
     public uint fragmentLength;
     public uint sendAttempts;
-    public ENetProto cmd;
+    public ENetProto command;
     public ENetPacket? packet;
 };
 
