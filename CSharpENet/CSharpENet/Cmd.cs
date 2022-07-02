@@ -23,7 +23,7 @@ struct ENetOutCmd
     public uint fragmentLength;
     public uint sendAttempts;
     public ENetProto cmd;
-    public ENetPacket packet;
+    public ENetPacket? packet;
 };
 
 struct ENetInCmd
