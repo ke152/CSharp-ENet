@@ -29,8 +29,8 @@ class ENetPeer
     public uint outgoingBandwidth;  /**< Upstream bandwidth of the client in bytes/second */
     public uint incomingBandwidthThrottleEpoch;
     public uint outgoingBandwidthThrottleEpoch;
-    public uint incomingDataTotal;
-    public uint outgoingDataTotal;
+    public int incomingDataTotal;
+    public int outgoingDataTotal;
     public uint lastSendTime;
     public uint lastReceiveTime;
     public uint nextTimeout;
