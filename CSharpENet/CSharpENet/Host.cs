@@ -1,5 +1,6 @@
 
 using System.Net;
+using System.Runtime.InteropServices;
 
 namespace ENet;
 
@@ -25,13 +26,13 @@ class ENetHost : Singleton<ENetHost>
     public uint commandCount;
     public byte[] buffers = new byte[ENetDef.BufferMax];
     public uint bufferCount;
-    public byte[,] packetData = new byte[2, ENetDef.ProtoMaxMTU];
+    public byte[][] packetData;
     public IPEndPoint? receivedAddress;
     public byte[]? receivedData;
-    public uint receivedDataLength;
+    public int receivedDataLength;
     public uint totalSentData;               /**< total data sent, user should reset to 0 as needed to prevent overflow */
     public uint totalSentPackets;            /**< total UDP packets sent, user should reset to 0 as needed to prevent overflow */
-    public uint totalReceivedData;           /**< total data received, user should reset to 0 as needed to prevent overflow */
+    public int totalReceivedData;           /**< total data received, user should reset to 0 as needed to prevent overflow */
     public uint totalReceivedPackets;        /**< total UDP packets received, user should reset to 0 as needed to prevent overflow */
     public uint connectedPeers;
     public uint bandwidthLimitedPeers;
@@ -41,7 +42,9 @@ class ENetHost : Singleton<ENetHost>
 
     public ENetHost()
     {
-
+        this.packetData = new byte[2][];
+        this.packetData[0] = new byte[ENetDef.ProtoMaxMTU];
+        this.packetData[1] = new byte[ENetDef.ProtoMaxMTU];
     }
     public void Create(IPEndPoint address, uint peerCount, uint channelLimit, uint incomingBandwidth, uint outgoingBandwidth)
     {//TODO:转化到单例得构造函数中
@@ -570,7 +573,7 @@ class ENetHost : Singleton<ENetHost>
     }
 
 
-    public void ProtoRemoveSent_unreliableCommands(ENetPeer peer)
+    public void ProtoRemoveSentUnreliableCommands(ENetPeer peer)
     {
         if (peer.sentUnreliableCommands.Count == 0)
             return;
@@ -664,13 +667,261 @@ class ENetHost : Singleton<ENetHost>
         return commandNumber;
     }
 
+
+    public int ProtoReceiveIncomingCommands(ENetEvent @event)
+    {
+        int packets;
+
+        for (packets = 0; packets < 256; ++packets)
+        {
+            int receivedLength;
+
+            if (this.socket == null)
+                return -1;
+
+            receivedLength = this.socket.Receive(this.packetData[0], ref this.receivedAddress);
+
+            if (receivedLength < 0)
+                return -1;
+
+            if (receivedLength == 0)
+                return 0;
+
+            this.receivedData = this.packetData[0];
+            this.receivedDataLength = receivedLength;
+
+            this.totalReceivedData += receivedLength;
+            this.totalReceivedPackets++;
+
+            switch (ProtoHandleIncomingCommands(@event))
+            {
+                case 1:
+                    return 1;
+
+                case -1:
+                    return -1;
+
+                default:
+                    break;
+            }
+        }
+
+        return 0;
+    }
+
+    public int ProtoHandleIncomingCommands(ENetEvent @event)
+    {
+        ENetProtoHeader header;
+        ENetProto command;
+        ENetPeer? peer = null;
+        int currentDataIdx;
+        int headerSize = Marshal.SizeOf(new ENetProtoHeader());
+        uint peerID, flags;
+        uint sessionID;
+
+        if (this.receivedData == null)
+        {
+            return -1;
+        }
+
+        byte[] headerBytes = new byte[headerSize];
+        if (headerBytes.Length > this.receivedDataLength)
+        {
+            return 0;
+        }
+        for (int i = 0; i < headerBytes.Length; i++)
+        {
+            headerBytes[i] = this.receivedData[i];
+        }
+
+        header = Utils.DeSerialize<ENetProtoHeader>(headerBytes);
+
+        peerID = Utils.NetToHostOrder(header.peerID);
+        sessionID = (peerID & (int)ENetProtoFlag.HeaderSessionMask) >> (int)ENetProtoFlag.HeaderSessionShift;
+        flags = peerID & (int)ENetProtoFlag.HeaderFalgMASK;
+        peerID &= ~((uint)ENetProtoFlag.HeaderFalgMASK | (uint)ENetProtoFlag.HeaderSessionMask);
+
+        //TODO：这里最后得0，是原先(uint)&((ENetProtoHeader*)0)->sentTime;，不是很理解，先用0代替
+        headerSize = (flags & (int)ENetProtoFlag.HeaderFalgSentTime) != 0 ? (int)headerSize : 0;
+
+        if (peerID == (int)ENetDef.ProtoMaxPeerID)
+            peer = null;
+        else
+        if (peerID >= this.peerCount)
+            return 0;
+        else
+        {
+            if (this.peers != null && peerID < this.peers.Length)
+            {
+
+            peer = this.peers[peerID];
+                byte[]? hostIP = peer.address?.Address?.GetAddressBytes();
+                bool isBroadcast = false;
+                if (hostIP != null)
+                {
+                    isBroadcast = hostIP[0] != 255 && hostIP[1] != 255 && hostIP[2] != 255 && hostIP[3] != 255;
+                }
+
+            if (peer.state == ENetPeerState.Disconnected ||
+                peer.state == ENetPeerState.Zombie ||
+                ((this.receivedAddress?.Address?.GetAddressBytes() != peer.address?.Address?.GetAddressBytes() ||
+                  this.receivedAddress?.Port != peer.address?.Port) &&
+                  !isBroadcast) ||
+                (peer.outgoingPeerID < (int)ENetDef.ProtoMaxPeerID &&
+                 sessionID != peer.incomingSessionID))
+                return 0;
+            }
+        }
+
+
+        if (peer != null && peer.address != null && this.receivedAddress != null)
+        {
+            peer.address.Address = this.receivedAddress.Address;
+            peer.address.Port = this.receivedAddress.Port;
+            peer.incomingDataTotal += this.receivedDataLength;
+        }
+
+        currentDataIdx = headerSize;
+
+        while (currentDataIdx < this.receivedDataLength)
+        {
+            uint commandNumber;
+            uint commandSize;
+
+            command = (ENetProto*)currentData;
+            
+            if (currentData + Marshal.SizeOf<ENetProtoCmdHeader>() > &this.receivedData[this.receivedDataLength])//TODO:所有sizeof都用这种形式
+                break;
+
+            commandNumber = command.header.command & (int)ENetProtoCmdType.Mask;
+            if (commandNumber >= (int)ENetProtoCmdType.Count)
+                break;
+
+            commandSize = commandSizes[commandNumber];
+            if (commandSize == 0 || currentData + commandSize > &this.receivedData[this.receivedDataLength])
+                break;
+
+            currentData += commandSize;
+
+            if (peer == null && commandNumber != (int)ENetProtoCmdType.Connect)
+                break;
+
+            command.header.reliableSequenceNumber = Utils.NetToHostOrder(command.header.reliableSequenceNumber);
+
+            switch (commandNumber)
+            {
+                case (int)ENetProtoCmdType.Ack:
+                    if (ProtoHandle_acknowledge(host, @event, peer, command))
+                        goto commandError;
+                    break;
+
+                case (int)ENetProtoCmdType.Connect:
+                    if (peer != null)
+                        goto commandError;
+                    peer = ProtoHandleConnect(host, header, command);
+                    if (peer == null)
+                        goto commandError;
+                    break;
+
+                case (int)ENetProtoCmdType.VerifyConnect:
+                    if (ProtoHandleVerifyConnect(host, @event, peer, command))
+                        goto commandError;
+                    break;
+
+                case (int)ENetProtoCmdType.Disconnect:
+                    if (ProtoHandleDisconnect(host, peer, command))
+                        goto commandError;
+                    break;
+
+                case (int)ENetProtoCmdType.Ping:
+                    if (ProtoHandlePing(host, peer, command))
+                        goto commandError;
+                    break;
+
+                case (int)ENetProtoCmdType.SendReliable:
+                    if (ProtoHandleSendReliable(host, peer, command, &currentData))
+                        goto commandError;
+                    break;
+
+                case (int)ENetProtoCmdType.SendUnreliable:
+                    if (ProtoHandleSendUnreliable(host, peer, command, &currentData))
+                        goto commandError;
+                    break;
+
+                case (int)ENetProtoCmdType.SendUnseq:
+                    if (ProtoHandleSendUnsequenced(host, peer, command, &currentData))
+                        goto commandError;
+                    break;
+
+                case (int)ENetProtoCmdType.SendFragment:
+                    if (ProtoHandleSendFragment(host, peer, command, &currentData))
+                        goto commandError;
+                    break;
+
+                case (int)ENetProtoCmdType.BandwidthLimit:
+                    if (ProtoHandleBandwidthLimit(host, peer, command))
+                        goto commandError;
+                    break;
+
+                case (int)ENetProtoCmdType.ThrottleConfig:
+                    if (ProtoHandleThrottleConfigure(host, peer, command))
+                        goto commandError;
+                    break;
+
+                case (int)ENetProtoCmdType.SendUnreliableFragment:
+                    if (ProtoHandleSendUnreliableFragment(host, peer, command, &currentData))
+                        goto commandError;
+                    break;
+
+                default:
+                    goto commandError;
+            }
+
+            if (peer != null &&
+                (command.header.command & (int)ENetProtoFlag.CmdFlagAck) != 0)
+            {
+                uint sentTime;
+
+                if (!(flags & (int)ENetProtoFlag.HeaderFalgSentTime))
+                    break;
+
+                sentTime = Utils.NetToHostOrder(header.sentTime);
+
+                switch (peer.state)
+                {
+                    case (int)ENetPeerState.Disconnecting:
+                    case (int)ENetPeerState.AckConnect:
+                    case (int)ENetPeerState.Disconnected:
+                    case (int)ENetPeerState.Zombie:
+                        break;
+
+                    case (int)ENetPeerState.AckDisconnect:
+                        if ((command.header.command & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.Disconnect)
+                            enetPeerQueue_acknowledgement(peer, command, sentTime);
+                        break;
+
+                    default:
+                        enetPeerQueue_acknowledgement(peer, command, sentTime);
+                        break;
+                }
+            }
+        }
+
+    commandError:
+        if (@event != null && @event.type != ENetEventType.None)
+            return 1;
+
+        return 0;
+    }
+
+    /*
     public ENetPeer? ProtoHandleConnect(ENetProtoHeader header, ENetProto command)
     {
         uint incomingSessionID, outgoingSessionID;
         uint mtu, windowSize;
         ENetChannel channel;
         uint channelCount, duplicatePeers = 0;
-        ENetPeer? currentPeer, peer = null;
+        ENetPeer? peer = null;
 
         channelCount = Utils.NetToHostOrder(command.connect.channelCount);
 
@@ -692,10 +943,10 @@ class ENetHost : Singleton<ENetHost>
             }
             else
             if (currentPeer.state != ENetPeerState.Connecting &&
-                currentPeer.address.Address.GetAddressBytes() == this.receivedAddress?.Address.GetAddressBytes())
+                currentPeer.address?.Address.GetAddressBytes() == this.receivedAddress?.Address.GetAddressBytes())
             {
-                if (currentPeer.address.Port == this.receivedAddress.Port &&
-                    currentPeer.connectID == command.connect.connectID)
+                if (currentPeer?.address?.Port == this.receivedAddress?.Port &&
+                    currentPeer?.connectID == command.connect.connectID)
                     return null;
 
                 ++duplicatePeers;
@@ -800,223 +1051,7 @@ class ENetHost : Singleton<ENetHost>
         return peer;
     }
 
-    public int
-   ProtoHandleIncomingCommands(ENetEvent* @event)
-    {
-        ENetProtoHeader* header;
-        ENetProto* command;
-        ENetPeer peer;
-        uint* currentData;
-        uint headerSize;
-        uint peerID, flags;
-        uint sessionID;
-
-        if (this.receivedDataLength < (uint)&((ENetProtoHeader*)0)->sentTime)
-            return 0;
-
-        header = (ENetProtoHeader*)this.receivedData;
-
-        peerID = Utils.NetToHostOrder(header->peerID);
-        sessionID = (peerID & (int)ENetProtoFlag.HeaderSessionMask) >> (int)ENetProtoFlag.HeaderSessionShift;
-        flags = peerID & (int)ENetProtoFlag.HeaderFalgMASK;
-        peerID &= ~((int)ENetProtoFlag.HeaderFalgMASK | (int)ENetProtoFlag.HeaderSessionMask);
-
-        headerSize = (flags & (int)ENetProtoFlag.HeaderFalgSentTime ? sizeof(ENetProtoHeader) : (uint)&((ENetProtoHeader*)0)->sentTime);
-        if (this.checksum != null)
-            headerSize += sizeof(uint);
-
-        if (peerID == (int)ENetDef.ProtoMaxPeerID)
-            peer = null;
-        else
-        if (peerID >= this.peerCount)
-            return 0;
-        else
-        {
-            peer = &this.peers[peerID];
-
-            if (peer.state == (int)ENetPeerState.Disconnected ||
-                peer.state == (int)ENetPeerState.Zombie ||
-                ((this.receivedAddress.host != peer.address.host ||
-                  this.receivedAddress.port != peer.address.port) &&
-                  peer.address.host != ENetHOST_BROADCAST) ||
-                (peer.outgoingPeerID < (int)ENetDef.ProtoMaxPeerID &&
-                 sessionID != peer.incomingSessionID))
-                return 0;
-        }
-
-        if (flags & (int)ENetProtoFlag.HeaderFalgCompressed)
-        {
-            uint originalSize;
-            if (this.compressor.context == null || this.compressor.decompress == null)
-                return 0;
-
-            originalSize = this.compressor.decompress(this.compressor.context,
-                                        this.receivedData + headerSize,
-                                        this.receivedDataLength - headerSize,
-                                        this.packetData[1] + headerSize,
-                                        sizeof(host ->packetData[1]) - headerSize);
-            if (originalSize <= 0 || originalSize > sizeof(host ->packetData[1]) -headerSize)
-             return 0;
-
-            memcpy(this.packetData[1], header, headerSize);
-            this.receivedData = this.packetData[1];
-            this.receivedDataLength = headerSize + originalSize;
-        }
-
-        if (this.checksum != null)
-        {
-            uint* checksum = (uint*)&this.receivedData[headerSize - sizeof(uint)],
-                        desiredChecksum = *checksum;
-            ENetBuffer buffer;
-
-            *checksum = peer != null ? peer.connectID : 0;
-
-            buffer.data = this.receivedData;
-            buffer.dataLength = this.receivedDataLength;
-
-            if (this.checksum(&buffer, 1) != desiredChecksum)
-                return 0;
-        }
-
-        if (peer != null)
-        {
-            peer.address.host = this.receivedAddress.host;
-            peer.address.port = this.receivedAddress.port;
-            peer.incomingDataTotal += this.receivedDataLength;
-        }
-
-        currentData = this.receivedData + headerSize;
-
-        while (currentData < &this.receivedData[this.receivedDataLength])
-        {
-            uint commandNumber;
-            uint commandSize;
-
-            command = (ENetProto*)currentData;
-
-            if (currentData + sizeof(ENetProtoCmdHeader) > &this.receivedData[this.receivedDataLength])
-                break;
-
-            commandNumber = command.header.command & (int)ENetProtoCmdType.Mask;
-            if (commandNumber >= (int)ENetProtoCmdType.Count)
-                break;
-
-            commandSize = commandSizes[commandNumber];
-            if (commandSize == 0 || currentData + commandSize > &this.receivedData[this.receivedDataLength])
-                break;
-
-            currentData += commandSize;
-
-            if (peer == null && commandNumber != (int)ENetProtoCmdType.Connect)
-                break;
-
-            command.header.reliableSequenceNumber = Utils.NetToHostOrder(command.header.reliableSequenceNumber);
-
-            switch (commandNumber)
-            {
-                case (int)ENetProtoCmdType.Ack:
-                    if (ProtoHandle_acknowledge(host, @event, peer, command))
-                        goto commandError;
-                    break;
-
-                case (int)ENetProtoCmdType.Connect:
-                    if (peer != null)
-                        goto commandError;
-                    peer = ProtoHandleConnect(host, header, command);
-                    if (peer == null)
-                        goto commandError;
-                    break;
-
-                case (int)ENetProtoCmdType.VerifyConnect:
-                    if (ProtoHandle_verifyConnect(host, @event, peer, command))
-                        goto commandError;
-                    break;
-
-                case (int)ENetProtoCmdType.Disconnect:
-                    if (ProtoHandleDisconnect(host, peer, command))
-                        goto commandError;
-                    break;
-
-                case (int)ENetProtoCmdType.Ping:
-                    if (ProtoHandlePing(host, peer, command))
-                        goto commandError;
-                    break;
-
-                case (int)ENetProtoCmdType.SendReliable:
-                    if (ProtoHandleSendReliable(host, peer, command, &currentData))
-                        goto commandError;
-                    break;
-
-                case (int)ENetProtoCmdType.SendUnreliable:
-                    if (ProtoHandleSend_unreliable(host, peer, command, &currentData))
-                        goto commandError;
-                    break;
-
-                case (int)ENetProtoCmdType.SendUnseq:
-                    if (ProtoHandleSend_unsequenced(host, peer, command, &currentData))
-                        goto commandError;
-                    break;
-
-                case (int)ENetProtoCmdType.SendFragment:
-                    if (ProtoHandleSend_fragment(host, peer, command, &currentData))
-                        goto commandError;
-                    break;
-
-                case (int)ENetProtoCmdType.BandwidthLimit:
-                    if (ProtoHandle_bandwidthLimit(host, peer, command))
-                        goto commandError;
-                    break;
-
-                case (int)ENetProtoCmdType.ThrottleConfig:
-                    if (ProtoHandle_throttleConfigure(host, peer, command))
-                        goto commandError;
-                    break;
-
-                case (int)ENetProtoCmdType.SendUnreliableFragment:
-                    if (ProtoHandleSend_unreliable_fragment(host, peer, command, &currentData))
-                        goto commandError;
-                    break;
-
-                default:
-                    goto commandError;
-            }
-
-            if (peer != null &&
-                (command.header.command & (int)ENetProtoFlag.CmdFlagAck) != 0)
-            {
-                uint sentTime;
-
-                if (!(flags & (int)ENetProtoFlag.HeaderFalgSentTime))
-                    break;
-
-                sentTime = Utils.NetToHostOrder(header->sentTime);
-
-                switch (peer.state)
-                {
-                    case (int)ENetPeerState.Disconnecting:
-                    case (int)ENetPeerState.AckConnect:
-                    case (int)ENetPeerState.Disconnected:
-                    case (int)ENetPeerState.Zombie:
-                        break;
-
-                    case (int)ENetPeerState.AckDisconnect:
-                        if ((command.header.command & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.Disconnect)
-                            enetPeerQueue_acknowledgement(peer, command, sentTime);
-                        break;
-
-                    default:
-                        enetPeerQueue_acknowledgement(peer, command, sentTime);
-                        break;
-                }
-            }
-        }
-
-    commandError:
-        if (@event != null && @event.type != ENetEventType.None)
-            return 1;
-
-        return 0;
-    }
+    
 
     public int ProtoHandleSendReliable(ENetPeer peer, ENetProto command, ref byte[] currentData)
     {
@@ -1050,15 +1085,15 @@ class ENetHost : Singleton<ENetHost>
         //    return -1;
 
         //TODO: 有用得代码，后面再回来改他
-        //if (peer.QueueInCmd(command, command + sizeof(new ENetProtoSendReliable()), dataLength, (int)ENetPacketFlag.Reliable, 0) == null)
+        //if (peer.QueueInCmd(command, command + Marshal.SizeOf<ENetProtoSendReliable>(), dataLength, (int)ENetPacketFlag.Reliable, 0) == null)
         // return -1;
 
         return 0;
     }
-    /*
+    
 
    public int 
-   ProtoHandleSend_unsequenced(ENetPeer peer, const ENetProto* command, uint** currentData)
+   ProtoHandleSendUnsequenced(ENetPeer peer, const ENetProto* command, uint** currentData)
    {
        uint unsequencedGroup, index;
        uint dataLength;
@@ -1095,7 +1130,7 @@ class ENetHost : Singleton<ENetHost>
        if (peer.unsequencedWindow[index / 32] & (1 << (index % 32)))
        return 0;
 
-   if (enetPeerQueueIncomingCommand(peer, command, (const uint*) command + sizeof(ENetProtoSendUnsequenced), dataLength, (int)ENetPacketFlag.UnSeq, 0) == null)
+   if (enetPeerQueueIncomingCommand(peer, command, (const uint*) command + Marshal.SizeOf<ENetProtoSendUnsequenced>(), dataLength, (int)ENetPacketFlag.UnSeq, 0) == null)
          return -1;
 
    peer.unsequencedWindow[index / 32] |= 1 << (index % 32);
@@ -1104,7 +1139,7 @@ class ENetHost : Singleton<ENetHost>
    }
 
    public int 
-   ProtoHandleSend_unreliable(ENetPeer peer, const ENetProto* command, uint** currentData)
+   ProtoHandleSendUnreliable(ENetPeer peer, const ENetProto* command, uint** currentData)
    {
        uint dataLength;
 
@@ -1119,14 +1154,14 @@ class ENetHost : Singleton<ENetHost>
            *currentData > &this.receivedData[this.receivedDataLength])
            return -1;
 
-       if (enetPeerQueueIncomingCommand(peer, command, (const uint*) command + sizeof(ENetProtoSendUnreliable), dataLength, 0, 0) == null)
+       if (enetPeerQueueIncomingCommand(peer, command, (const uint*) command + Marshal.SizeOf<ENetProtoSendUnreliable>(), dataLength, 0, 0) == null)
          return -1;
 
    return 0;
    }
 
    public int 
-   ProtoHandleSend_fragment(ENetPeer peer, const ENetProto* command, uint** currentData)
+   ProtoHandleSendFragment(ENetPeer peer, const ENetProto* command, uint** currentData)
    {
        uint fragmentNumber,
               fragmentCount,
@@ -1224,7 +1259,7 @@ class ENetHost : Singleton<ENetHost>
                fragmentLength = startcommand.packet.dataLength - fragmentOffset;
 
            memcpy(startcommand.packet.data + fragmentOffset,
-                   (uint*)command + sizeof(ENetProtoSendFragment),
+                   (uint*)command + Marshal.SizeOf<ENetProtoSendFragment>(),
                    fragmentLength);
 
            if (startcommand.fragmentsRemaining <= 0)
@@ -1235,7 +1270,7 @@ class ENetHost : Singleton<ENetHost>
    }
 
    public int 
-   ProtoHandleSend_unreliable_fragment(ENetPeer peer, const ENetProto* command, uint** currentData)
+   ProtoHandleSendUnreliableFragment(ENetPeer peer, const ENetProto* command, uint** currentData)
    {
        uint fragmentNumber,
               fragmentCount,
@@ -1342,11 +1377,11 @@ class ENetHost : Singleton<ENetHost>
                fragmentLength = startcommand.packet.dataLength - fragmentOffset;
 
            memcpy(startcommand.packet.data + fragmentOffset,
-                   (uint*)command + sizeof(ENetProtoSendFragment),
+                   (uint*)command + Marshal.SizeOf<ENetProtoSendFragment>(),
                    fragmentLength);
 
            if (startcommand.fragmentsRemaining <= 0)
-               enetPeerDispatchIncoming_unreliableCommands(peer, channel, null);
+               enetPeerDispatchIncomingUnreliableCommands(peer, channel, null);
        }
 
        return 0;
@@ -1362,7 +1397,7 @@ class ENetHost : Singleton<ENetHost>
    }
 
    public int 
-   ProtoHandle_bandwidthLimit(ENetPeer peer, const ENetProto* command)
+   ProtoHandleBandwidthLimit(ENetPeer peer, const ENetProto* command)
    {
        if (peer.state != (int)ENetPeerState.Connected && peer.state != (int)ENetPeerState.DisconnectLater)
            return -1;
@@ -1396,7 +1431,7 @@ class ENetHost : Singleton<ENetHost>
    }
 
    public int 
-   ProtoHandle_throttleConfigure(ENetPeer peer, const ENetProto* command)
+   ProtoHandleThrottleConfigure(ENetPeer peer, const ENetProto* command)
    {
        if (peer.state != (int)ENetPeerState.Connected && peer.state != (int)ENetPeerState.DisconnectLater)
            return -1;
@@ -1438,7 +1473,7 @@ class ENetHost : Singleton<ENetHost>
    }
 
    public int 
-   ProtoHandle_acknowledge(ENetEvent* @event, ENetPeer peer, const ENetProto* command)
+   ProtoHandle_acknowledge(ENetEvent @event, ENetPeer peer, const ENetProto* command)
    {
        uint roundTripTime,
               receivedSentTime,
@@ -1453,15 +1488,15 @@ class ENetHost : Singleton<ENetHost>
        if ((receivedSentTime & 0x8000) > (this.serviceTime & 0x8000))
            receivedSentTime -= 0x10000;
 
-       if (ENet_TIMELESS(this.serviceTime, receivedSentTime))
+       if (ENetTIMELESS(this.serviceTime, receivedSentTime))
            return 0;
 
-       roundTripTime = ENet_TIMEDIFFERENCE(this.serviceTime, receivedSentTime);
+       roundTripTime = ENetTIMEDIFFERENCE(this.serviceTime, receivedSentTime);
        roundTripTime = Math.Max(roundTripTime, 1);
 
        if (peer.lastReceiveTime > 0)
        {
-           enetPeer_throttle(peer, roundTripTime);
+           enetPeerThrottle(peer, roundTripTime);
 
            peer.roundTripTimeVariance -= peer.roundTripTimeVariance / 4;
 
@@ -1491,7 +1526,7 @@ class ENetHost : Singleton<ENetHost>
            peer.highestRoundTripTimeVariance = peer.roundTripTimeVariance;
 
        if (peer.packetThrottleEpoch == 0 ||
-           ENet_TIMEDIFFERENCE(this.serviceTime, peer.packetThrottleEpoch) >= peer.packetThrottleInterval)
+           ENetTIMEDIFFERENCE(this.serviceTime, peer.packetThrottleEpoch) >= peer.packetThrottleInterval)
        {
            peer.lastRoundTripTime = peer.lowestRoundTripTime;
            peer.lastRoundTripTimeVariance = Math.Max(peer.highestRoundTripTimeVariance, 1);
@@ -1537,7 +1572,7 @@ class ENetHost : Singleton<ENetHost>
    }
 
    public int 
-   ProtoHandle_verifyConnect(ENetEvent* @event, ENetPeer peer, const ENetProto* command)
+   ProtoHandleVerifyConnect(ENetEvent @event, ENetPeer peer, const ENetProto* command)
    {
        uint mtu, windowSize;
        uint channelCount;
@@ -1600,69 +1635,6 @@ class ENetHost : Singleton<ENetHost>
 
    
 
-   public int 
-   ProtoReceiveIncomingCommands(ENetEvent* @event)
-   {
-       int packets;
-
-       for (packets = 0; packets < 256; ++packets)
-       {
-           int receivedLength;
-           ENetBuffer buffer;
-
-           buffer.data = this.packetData[0];
-           buffer.dataLength = sizeof(host ->packetData[0]);
-
-   receivedLength = enetSocketReceive(this.socket,
-                                         &this.receivedAddress,
-                                         &buffer,
-                                         1);
-
-   if (receivedLength < 0)
-       return -1;
-
-   if (receivedLength == 0)
-       return 0;
-
-   this.receivedData = this.packetData[0];
-   this.receivedDataLength = receivedLength;
-
-   this.totalReceivedData += receivedLength;
-   this.totalReceivedPackets++;
-
-   if (this.intercept != null)
-   {
-       switch (this.intercept(host, @event))
-       {
-           case 1:
-               if (@event != null && @event.type != ENetEventType.None)
-                  return 1;
-
-               continue;
-
-           case -1:
-               return -1;
-
-           default:
-               break;
-       }
-   }
-
-   switch (ProtoHandleIncomingCommands(host, @event))
-   {
-       case 1:
-           return 1;
-
-       case -1:
-           return -1;
-
-       default:
-           break;
-   }
-       }
-
-       return 0;
-   }
 
    public void 
    ProtoSend_acknowledgements(ENetPeer peer)
@@ -1673,13 +1645,13 @@ class ENetHost : Singleton<ENetHost>
        ENetListIterator currentAcknowledgement;
        uint reliableSequenceNumber;
 
-       currentAcknowledgement = enetList_begin(&peer.acknowledgements);
+       currentAcknowledgement = enetListBegin(&peer.acknowledgements);
 
        while (currentAcknowledgement != enetListEnd(&peer.acknowledgements))
        {
            if (command >= &this.commands[sizeof(host ->commands) / sizeof(ENetProto)] ||
         buffer >= &this.buffers[sizeof(host ->buffers) / sizeof(ENetBuffer)] ||
-   peer.mtu - this.packetSize < sizeof(ENetProtoAcknowledge))
+   peer.mtu - this.packetSize < Marshal.SizeOf<ENetProtoAcknowledge>())
           {
        this.continueSending = 1;
 
@@ -1691,7 +1663,7 @@ class ENetHost : Singleton<ENetHost>
    currentAcknowledgement = enetListNext(currentAcknowledgement);
 
    buffer->data = command;
-   buffer->dataLength = sizeof(ENetProtoAcknowledge);
+   buffer->dataLength = Marshal.SizeOf<ENetProtoAcknowledge>();
 
    this.packetSize += buffer->dataLength;
 
@@ -1707,7 +1679,7 @@ class ENetHost : Singleton<ENetHost>
        ProtoDispatchState(host, peer, (int)ENetPeerState.Zombie);
 
    enetListRemove(&acknowledgement->acknowledgementList);
-   enet_free(acknowledgement);
+   enetFree(acknowledgement);
 
    ++command;
    ++buffer;
@@ -1718,13 +1690,13 @@ class ENetHost : Singleton<ENetHost>
    }
 
    public int 
-   ProtoCheck_timeouts(ENetPeer peer, ENetEvent* @event)
+   ProtoCheckTimeouts(ENetPeer peer, ENetEvent @event)
    {
        ENetOutCmd outgoingCommand;
        ENetListIterator currentCommand, insertPosition;
 
-       currentCommand = enetList_begin(&peer.sentReliableCommands);
-       insertPosition = enetList_begin(&peer.outgoingCommands);
+       currentCommand = enetListBegin(&peer.sentReliableCommands);
+       insertPosition = enetListBegin(&peer.outgoingCommands);
 
        while (currentCommand != enetListEnd(&peer.sentReliableCommands))
        {
@@ -1732,17 +1704,17 @@ class ENetHost : Singleton<ENetHost>
 
            currentCommand = enetListNext(currentCommand);
 
-           if (ENet_TIMEDIFFERENCE(this.serviceTime, outgoingCommand.sentTime) < outgoingCommand.roundTripTimeout)
+           if (ENetTIMEDIFFERENCE(this.serviceTime, outgoingCommand.sentTime) < outgoingCommand.roundTripTimeout)
                continue;
 
            if (peer.earliestTimeout == 0 ||
-               ENet_TIMELESS(outgoingCommand.sentTime, peer.earliestTimeout))
+               ENetTIMELESS(outgoingCommand.sentTime, peer.earliestTimeout))
                peer.earliestTimeout = outgoingCommand.sentTime;
 
            if (peer.earliestTimeout != 0 &&
-                 (ENet_TIMEDIFFERENCE(this.serviceTime, peer.earliestTimeout) >= peer.timeoutMaximum ||
+                 (ENetTIMEDIFFERENCE(this.serviceTime, peer.earliestTimeout) >= peer.timeoutMaximum ||
                    (outgoingCommand.roundTripTimeout >= outgoingCommand.roundTripTimeoutLimit &&
-                     ENet_TIMEDIFFERENCE(this.serviceTime, peer.earliestTimeout) >= peer.timeoutMinimum)))
+                     ENetTIMEDIFFERENCE(this.serviceTime, peer.earliestTimeout) >= peer.timeoutMinimum)))
            {
                ProtoNotifyDisconnect(host, peer, @event);
 
@@ -1758,7 +1730,7 @@ class ENetHost : Singleton<ENetHost>
 
            enetListInsert(insertPosition, enetListRemove(&outgoingCommand.outgoingCommandList));
 
-           if (currentCommand == enetList_begin(&peer.sentReliableCommands) &&
+           if (currentCommand == enetListBegin(&peer.sentReliableCommands) &&
                !enetListEmpty(&peer.sentReliableCommands))
            {
                outgoingCommand = (ENetOutCmd)currentCommand;
@@ -1782,7 +1754,7 @@ class ENetHost : Singleton<ENetHost>
        uint commandSize;
        int windowExceeded = 0, windowWrap = 0, canPing = 1;
 
-       currentCommand = enetList_begin(&peer.outgoingCommands);
+       currentCommand = enetListBegin(&peer.outgoingCommands);
 
        while (currentCommand != enetListEnd(&peer.outgoingCommands))
        {
@@ -1830,8 +1802,8 @@ class ENetHost : Singleton<ENetHost>
            }
 
            commandSize = commandSizes[outgoingCommand.command.header.command & (int)ENetProtoCmdType.Mask];
-           if (command >= &this.commands[sizeof(host ->commands) / sizeof(ENetProto)] ||
-        buffer + 1 >= &this.buffers[sizeof(host ->buffers) / sizeof(ENetBuffer)] ||
+           if (command >= &this.commands[sizeof(host ->commands) / Marshal.SizeOf<ENetProto>()] ||
+        buffer + 1 >= &this.buffers[sizeof(host ->buffers) / Marshal.SizeOf<ENetBuffer>()] ||
    peer.mtu - this.packetSize < commandSize ||
    (outgoingCommand.packet != null &&
    (uint)(peer.mtu - this.packetSize) < (uint)(commandSize + outgoingCommand.fragmentLength)))
@@ -1890,7 +1862,7 @@ class ENetHost : Singleton<ENetHost>
                        enetPacketDestroy(outgoingCommand.packet);
 
                    enetListRemove(&outgoingCommand.outgoingCommandList);
-                   enet_free(outgoingCommand);
+                   enetFree(outgoingCommand);
 
                    if (currentCommand == enetListEnd(&peer.outgoingCommands))
                        break;
@@ -1931,7 +1903,7 @@ class ENetHost : Singleton<ENetHost>
    }
    else
    if (!(outgoingCommand.command.header.command & (int)ENetProtoFlag.CmdFlagAck))
-       enet_free(outgoingCommand);
+       enetFree(outgoingCommand);
 
    ++peer.packetsSent;
 
@@ -1952,9 +1924,9 @@ class ENetHost : Singleton<ENetHost>
    }
 
    public int 
-   ProtoSendOutgoingCommands(ENetEvent* @event, int checkForTimeouts)
+   ProtoSendOutgoingCommands(ENetEvent @event, int checkForTimeouts)
    {
-       uint headerData[sizeof(ENetProtoHeader) + sizeof(uint)];
+       uint headerData[Marshal.SizeOf<ENetProtoHeader>() + sizeof(uint)];
        ENetProtoHeader* header = (ENetProtoHeader*)headerData;
        ENetPeer currentPeer;
        int sentLength;
@@ -1975,15 +1947,15 @@ class ENetHost : Singleton<ENetHost>
                this.headerFlags = 0;
                this.commandCount = 0;
                this.bufferCount = 1;
-               this.packetSize = sizeof(ENetProtoHeader);
+               this.packetSize = Marshal.SizeOf<ENetProtoHeader>();
 
                if (!enetListEmpty(&currentPeer.acknowledgements))
                    ProtoSend_acknowledgements(host, currentPeer);
 
                if (checkForTimeouts != 0 &&
                    !enetListEmpty(&currentPeer.sentReliableCommands) &&
-                   ENet_TIME_GREATEREQUAL(this.serviceTime, currentPeer.nextTimeout) &&
-                   ProtoCheck_timeouts(host, currentPeer, @event) == 1)
+                   ENetTIME_GREATEREQUAL(this.serviceTime, currentPeer.nextTimeout) &&
+                   ProtoCheckTimeouts(host, currentPeer, @event) == 1)
                {
                    if (@event != null && @event.type != ENetEventType.None)
                  return 1;
@@ -1994,8 +1966,8 @@ class ENetHost : Singleton<ENetHost>
            if ((enetListEmpty(&currentPeer.outgoingCommands) ||
                  ProtoCheckOutgoingCommands(host, currentPeer)) &&
                enetListEmpty(&currentPeer.sentReliableCommands) &&
-               ENet_TIMEDIFFERENCE(this.serviceTime, currentPeer.lastReceiveTime) >= currentPeer.pingInterval &&
-               currentPeer.mtu - this.packetSize >= sizeof(ENetProtoPing))
+               ENetTIMEDIFFERENCE(this.serviceTime, currentPeer.lastReceiveTime) >= currentPeer.pingInterval &&
+               currentPeer.mtu - this.packetSize >= Marshal.SizeOf<ENetProtoPing>())
    {
        enetPeerPing(currentPeer);
        ProtoCheckOutgoingCommands(host, currentPeer);
@@ -2007,7 +1979,7 @@ class ENetHost : Singleton<ENetHost>
    if (currentPeer.packetLossEpoch == 0)
        currentPeer.packetLossEpoch = this.serviceTime;
    else
-   if (ENet_TIMEDIFFERENCE(this.serviceTime, currentPeer.packetLossEpoch) >= (uint)ENetDef.PeerPacketLossInterval &&
+   if (ENetTIMEDIFFERENCE(this.serviceTime, currentPeer.packetLossEpoch) >= (uint)ENetDef.PeerPacketLossInterval &&
        currentPeer.packetsSent > 0)
    {
        uint packetLoss = currentPeer.packetsLost * (uint)ENetDef.PeerPacketLossScale / currentPeer.packetsSent;
@@ -2025,9 +1997,9 @@ class ENetHost : Singleton<ENetHost>
    this.buffers->data = headerData;
    if (this.headerFlags & (int)ENetProtoFlag.HeaderFalgSentTime)
    {
-       header->sentTime = (uint)IPAddress.HostToNetworkOrder(this.serviceTime & 0xFFFF);
+       header.sentTime = (uint)IPAddress.HostToNetworkOrder(this.serviceTime & 0xFFFF);
 
-       this.buffers->dataLength = sizeof(ENetProtoHeader);
+       this.buffers->dataLength = Marshal.SizeOf<ENetProtoHeader>();
    }
    else
        this.buffers->dataLength = (uint) & ((ENetProtoHeader*)0)->sentTime;
@@ -2035,7 +2007,7 @@ class ENetHost : Singleton<ENetHost>
    shouldCompress = 0;
    if (this.compressor.context != null && this.compressor.compress != null)
    {
-       uint originalSize = this.packetSize - sizeof(ENetProtoHeader),
+       uint originalSize = this.packetSize - Marshal.SizeOf<ENetProtoHeader>(),
               compressedSize = this.compressor.compress(this.compressor.context,
                                    &this.buffers[1], this.bufferCount - 1,
                                    originalSize,
@@ -2051,7 +2023,7 @@ class ENetHost : Singleton<ENetHost>
 
    if (currentPeer.outgoingPeerID < (int)ENetDef.ProtoMaxPeerID)
        this.headerFlags |= currentPeer.outgoingSessionID << (int)ENetProtoFlag.HeaderSessionShift;
-   header->peerID = (uint)IPAddress.HostToNetworkOrder(currentPeer.outgoingPeerID | this.headerFlags);
+   header.peerID = (uint)IPAddress.HostToNetworkOrder(currentPeer.outgoingPeerID | this.headerFlags);
    if (this.checksum != null)
    {
        uint* checksum = (uint*)&headerData[this.buffers->dataLength];
@@ -2071,7 +2043,7 @@ class ENetHost : Singleton<ENetHost>
 
    sentLength = enetSocketSend(this.socket, &currentPeer.address, this.buffers, this.bufferCount);
 
-   ProtoRemoveSent_unreliableCommands(currentPeer);
+   ProtoRemoveSentUnreliableCommands(currentPeer);
 
    if (sentLength < 0)
        return -1;
@@ -2085,7 +2057,7 @@ class ENetHost : Singleton<ENetHost>
 
 
    int
-   enetHostCheckEvents(ENetEvent* @event)
+   enetHostCheckEvents(ENetEvent @event)
    {
        if (@event == null) return -1;
 
@@ -2097,7 +2069,7 @@ class ENetHost : Singleton<ENetHost>
    }
 
    int
-   enetHostService(ENetEvent* @event, uint timeout)
+   enetHostService(ENetEvent @event, uint timeout)
    {
        uint waitCondition;
 
@@ -2122,14 +2094,14 @@ class ENetHost : Singleton<ENetHost>
        }
    }
 
-   this.serviceTime = enet_time_get();
+   this.serviceTime = enetTime_get();
 
    timeout += this.serviceTime;
 
    do
    {
-       if (ENet_TIMEDIFFERENCE(this.serviceTime, this.bandwidthThrottleEpoch) >= (uint)ENetDef.HostBandwidthThrottleInterval)
-           enetHost_bandwidth_throttle(host);
+       if (ENetTIMEDIFFERENCE(this.serviceTime, this.bandwidthThrottleEpoch) >= (uint)ENetDef.HostBandwidthThrottleInterval)
+           enetHostBandwidthThrottle(host);
 
        switch (ProtoSendOutgoingCommands(host, @event, 1))
        {
@@ -2190,24 +2162,24 @@ class ENetHost : Singleton<ENetHost>
            }
        }
 
-       if (ENet_TIME_GREATEREQUAL(this.serviceTime, timeout))
+       if (ENetTIME_GREATEREQUAL(this.serviceTime, timeout))
            return 0;
 
        do
        {
-           this.serviceTime = enet_time_get();
+           this.serviceTime = enetTime_get();
 
-           if (ENet_TIME_GREATEREQUAL(this.serviceTime, timeout))
+           if (ENetTIME_GREATEREQUAL(this.serviceTime, timeout))
                return 0;
 
            waitCondition = (int)ENetSocketWait.Recv | (int)ENetSocketWait.Interrupt;
 
-           if (enetSocket_wait(this.socket, &waitCondition, ENet_TIMEDIFFERENCE(timeout, this.serviceTime)) != 0)
+           if (enetSocket_wait(this.socket, &waitCondition, ENetTIMEDIFFERENCE(timeout, this.serviceTime)) != 0)
                return -1;
        }
        while (waitCondition & (int)ENetSocketWait.Interrupt);
 
-       this.serviceTime = enet_time_get();
+       this.serviceTime = enetTime_get();
    } while (waitCondition & (int)ENetSocketWait.Recv);
 
    return 0; 
