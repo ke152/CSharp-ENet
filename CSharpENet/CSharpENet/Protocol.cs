@@ -64,7 +64,7 @@ static class ENetProtoCmdSize
     }
 };
 
-class ENetProtoHeader
+struct ENetProtoHeader
 {
     public uint peerID;
     public uint sentTime;    
