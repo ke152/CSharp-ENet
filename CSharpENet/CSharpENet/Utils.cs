@@ -66,9 +66,8 @@ class Utils
         }
     }
 
-    public static byte[] SubBytes(byte[]? data, int start, int length)
+    public static byte[] SubBytes(byte[] data, int start, int length)
     {
-        if (data == null) return null;
         if (start < 0 || start >= data.Length || (start == 0 && length >= data.Length))
         {
             return data;
