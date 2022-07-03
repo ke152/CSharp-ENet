@@ -31,10 +31,10 @@ class ENetPeer
     public uint outgoingBandwidthThrottleEpoch;
     public int incomingDataTotal;
     public int outgoingDataTotal;
-    public uint lastSendTime;
-    public uint lastReceiveTime;
-    public uint nextTimeout;
-    public uint earliestTimeout;
+    public long lastSendTime;
+    public long lastReceiveTime;
+    public long nextTimeout;
+    public long earliestTimeout;
     public uint packetLossEpoch;
     public uint packetsSent;
     public uint packetsLost;
@@ -43,20 +43,20 @@ class ENetPeer
     public uint packetThrottle;
     public uint packetThrottleLimit;
     public uint packetThrottleCounter;
-    public uint packetThrottleEpoch;
+    public long packetThrottleEpoch;
     public uint packetThrottleAcceleration;
     public uint packetThrottleDeceleration;
     public uint packetThrottleInterval;
     public uint pingInterval;
     public uint timeoutLimit;
-    public uint timeoutMinimum;
-    public uint timeoutMaximum;
-    public uint lastRoundTripTime;
-    public uint lowestRoundTripTime;
-    public uint lastRoundTripTimeVariance;
-    public uint highestRoundTripTimeVariance;
-    public uint roundTripTime;            /**< mean round trip time (RTT), in milliseconds, between sending a reliable packet and receiving its acknowledgement */
-    public uint roundTripTimeVariance;
+    public long timeoutMinimum;
+    public long timeoutMaximum;
+    public long lastRoundTripTime;
+    public long lowestRoundTripTime;
+    public long lastRoundTripTimeVariance;
+    public long highestRoundTripTimeVariance;
+    public long roundTripTime;            /**< mean round trip time (RTT), in milliseconds, between sending a reliable packet and receiving its acknowledgement */
+    public long roundTripTimeVariance;
     public uint mtu;
     public uint windowSize;
     public uint reliableDataInTransit;
@@ -266,10 +266,10 @@ class ENetPeer
         if (cmd.header.channelID < channels?.Length)
         {
             ENetChannel channel = channels[cmd.header.channelID];
-            uint reliableWindow = cmd.header.reliableSeqNum / Convert.ToUInt32(ENetDef.PeerReliableWindowSize),
+            uint reliableWindow = cmd.header.reliableSequenceNumber / Convert.ToUInt32(ENetDef.PeerReliableWindowSize),
                         currentWindow = channel.incomingReliableSequenceNumber / Convert.ToUInt32(ENetDef.PeerReliableWindowSize);
 
-            if (cmd.header.reliableSeqNum < channel.incomingReliableSequenceNumber)
+            if (cmd.header.reliableSequenceNumber < channel.incomingReliableSequenceNumber)
                 reliableWindow += Convert.ToUInt32(ENetDef.PeerReliableWindows);
 
             if (reliableWindow >= currentWindow + Convert.ToUInt32(ENetDef.PeerReliableWindows) - 1 && reliableWindow <= currentWindow + Convert.ToUInt32(ENetDef.PeerReliableWindows))
@@ -351,7 +351,7 @@ class ENetPeer
         outCmd.sentTime = 0;
         outCmd.roundTripTimeout = 0;
         outCmd.roundTripTimeoutLimit = 0;
-        outCmd.command.header.reliableSeqNum = Utils.HostToNetOrder(outCmd.reliableSequenceNumber);
+        outCmd.command.header.reliableSequenceNumber = Utils.HostToNetOrder(outCmd.reliableSequenceNumber);
 
         switch (outCmd.command.header.command & (int)ENetProtoCmdType.Mask)
         {
@@ -385,7 +385,7 @@ class ENetPeer
 
         if ((cmd.header.command & (int)ENetProtoCmdType.SendUnseq) != 0)
         {
-            reliableSeqNum = cmd.header.reliableSeqNum;
+            reliableSeqNum = cmd.header.reliableSequenceNumber;
             reliableWindow = reliableSeqNum / ENetDef.PeerReliableWindowSize;
             currentWindow = channel.incomingReliableSequenceNumber / ENetDef.PeerReliableWindowSize;
 
@@ -488,7 +488,7 @@ class ENetPeer
 
         inCmd = new();
 
-        inCmd.reliableSeqNum = cmd.header.reliableSeqNum;
+        inCmd.reliableSeqNum = cmd.header.reliableSequenceNumber;
         inCmd.unreliableSeqNum = unreliableSeqNum & 0xFFFF;
         inCmd.cmd = cmd;
         inCmd.fragmentCount = fragmentCount;
@@ -830,7 +830,7 @@ class ENetPeer
         QueueOutgoingCommand(command, null, 0, 0);
     }
     
-    public int Throttle(uint rtt)
+    public int Throttle(long rtt)
     {
         if (this.lastRoundTripTime <= this.lastRoundTripTimeVariance)
         {
