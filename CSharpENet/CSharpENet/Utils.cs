@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Runtime.Serialization.Formatters.Binary;
 
 namespace ENet;
 
@@ -27,6 +28,42 @@ class Utils
     public static uint NetToHostOrder(uint value)
     {
         return Convert.ToUInt32(IPAddress.NetworkToHostOrder(value));
+    }
+
+
+    public static byte[]? Serialize<T>(T msg)
+    {
+        using (MemoryStream ms = new MemoryStream())
+        {
+            try
+            {
+                BinaryFormatter bf = new BinaryFormatter();
+                bf.Serialize(ms, msg);
+                ms.Seek(0, SeekOrigin.Begin);
+                return ms.ToArray();
+            }
+            catch (Exception e)
+            {
+                return null;
+            }
+        }
+    }
+
+    public static T? DeSerialize<T>(byte[] bytes)
+    {
+        using (MemoryStream ms = new MemoryStream(bytes))
+        {
+            try
+            {
+                BinaryFormatter bf = new BinaryFormatter();
+                T msg = (T)bf.Deserialize(ms);
+                return msg;
+            }
+            catch (Exception e)
+            {
+                return null;
+            }
+        }
     }
 }
 
