@@ -74,7 +74,7 @@ class ENetProtoCmdHeader
 {
     public int command;
     public uint channelID;
-    public uint reliableSeqNum;
+    public uint reliableSequenceNumber;
 };
 
 class ENetProtoAck
