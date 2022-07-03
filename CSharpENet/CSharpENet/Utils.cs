@@ -61,9 +61,32 @@ class Utils
             }
             catch (Exception e)
             {
-                return null;
+                return default;
             }
         }
+    }
+
+    public static byte[] SubBytes(byte[]? data, int start, int length)
+    {
+        if (data == null) return null;
+        if (start < 0 || start >= data.Length || (start == 0 && length >= data.Length))
+        {
+            return data;
+        }
+
+        if (start + length > data.Length)
+        {
+            length = data.Length - start;
+        }
+
+        byte[] result = new byte[length];
+
+        for (int i = start; i < start + length; i++)
+        {
+            result[i-start] = data[i];
+        }
+
+        return result;
     }
 }
 
