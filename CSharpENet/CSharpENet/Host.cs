@@ -362,7 +362,7 @@ class ENetHost : Singleton<ENetHost>
                     needsAdjustment = 1;
                     --peersRemaining;
                     bandwidth -= peerBandwidth;
-                    dataTotal -= peerBandwidth;
+                    dataTotal -= (int)peerBandwidth;
                 }
             }
         }
@@ -597,7 +597,7 @@ class ENetHost : Singleton<ENetHost>
             outgoingCommand = currentCommand;
 
             if (outgoingCommand?.reliableSequenceNumber == reliableSequenceNumber &&
-                outgoingCommand?.commandHeader.header.channelID == channelID)
+                outgoingCommand?.commandHeader.channelID == channelID)
             {
                 peer.sentReliableCommands.Remove(currentCommand);
                 break;
@@ -610,13 +610,13 @@ class ENetHost : Singleton<ENetHost>
             {
                 outgoingCommand = currentCommand;
 
-                if ((outgoingCommand?.commandHeader.header.command & (int)ENetProtoFlag.CmdFlagAck) != 0)
+                if ((outgoingCommand?.commandHeader.command & (int)ENetProtoFlag.CmdFlagAck) != 0)
                     continue;
 
                 if (outgoingCommand?.sendAttempts < 1) return (int)ENetProtoCmdType.None;
 
                 if (outgoingCommand?.reliableSequenceNumber == reliableSequenceNumber &&
-                    outgoingCommand?.commandHeader.header.channelID == channelID)
+                    outgoingCommand?.commandHeader.channelID == channelID)
                 {
                     peer.outgoingCommands.Remove(currentCommand);
                     break;
@@ -644,7 +644,7 @@ class ENetHost : Singleton<ENetHost>
             }
         }
 
-        commandNumber = (ENetProtoCmdType)(outgoingCommand.commandHeader.header.command & (int)ENetProtoCmdType.Mask);
+        commandNumber = (ENetProtoCmdType)(outgoingCommand.commandHeader.command & (int)ENetProtoCmdType.Mask);
 
         if (outgoingCommand.packet != null)
         {
