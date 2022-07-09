@@ -26,11 +26,11 @@ class ENetOutCmd
     public ENetPacket? packet;
 };
 
-struct ENetInCmd
+class ENetInCmd
 {
-    public uint reliableSeqNum;
-    public uint unreliableSeqNum;
-    public ENetProtoCmdHeader cmdHeader;
+    public uint reliableSequenceNumber ;
+    public uint unreliableSequenceNumber;
+    public ENetProtoCmdHeader commandHeader;
     public uint fragmentCount;
     public uint fragmentsRemaining;
     public uint[]? fragments;
