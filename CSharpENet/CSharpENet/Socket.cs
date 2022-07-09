@@ -138,10 +138,19 @@ class ENetSocket
         return socket.Poll(microSecondsTimeout, mode);
     }
 
-    public int Send(byte[] buffer)
+    public int SendTo(IPEndPoint? ep, List<byte[]> buffers)//TODO:这个
     {
-        return socket.Send(buffer);
+        if (ep == null) return 0;
+
+        int sentLength = 0;
+        for (int i = 0; i < buffers.Count; i++)
+        {
+            sentLength += this.socket.SendTo(buffers[i], ep);
+        }
+
+        return sentLength;
     }
+
     public int Receive(byte[] buffer, ref IPEndPoint? ep)
     {
         int length = socket.Receive(buffer);
