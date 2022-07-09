@@ -22,7 +22,12 @@ class ENetOutCmd
     public uint fragmentOffset;
     public uint fragmentLength;
     public uint sendAttempts;
-    public ENetProtoCmdHeader commandHeader;
+    public ENetProtoCmdHeader commandHeader
+    {
+        get { return this.cmd.header; }
+        set { this.cmd.header = value; }
+    }
+    public ENetProto cmd = new ENetProto();
     public ENetPacket? packet;
 };
 
