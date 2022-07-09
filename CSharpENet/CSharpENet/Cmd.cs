@@ -30,7 +30,7 @@ struct ENetInCmd
 {
     public uint reliableSeqNum;
     public uint unreliableSeqNum;
-    public ENetProto cmd;
+    public ENetProtoCmdHeader cmdHeader;
     public uint fragmentCount;
     public uint fragmentsRemaining;
     public uint[]? fragments;

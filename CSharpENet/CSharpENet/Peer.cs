@@ -160,7 +160,7 @@ class ENetPeer
 
             ENetInCmd inCmd = currentCmd.Value;
 
-            if ((inCmd.cmd.header.command & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.SendUnseq)
+            if ((inCmd.cmdHeader.command & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.SendUnseq)
                 continue;
 
             if (inCmd.reliableSeqNum == channel.incomingReliableSequenceNumber)
@@ -487,7 +487,7 @@ class ENetPeer
 
         inCmd.reliableSeqNum = cmd.header.reliableSequenceNumber;
         inCmd.unreliableSeqNum = unreliableSeqNum & 0xFFFF;
-        inCmd.cmd = cmd;
+        inCmd.cmdHeader = cmd.header;
         inCmd.fragmentCount = fragmentCount;
         inCmd.fragmentsRemaining = fragmentCount;
         inCmd.packet = packet;
@@ -647,7 +647,7 @@ class ENetPeer
 
            inCmd = this.dispatchedCommands.First.Value;
 
-           channelID = inCmd.cmd.header.channelID;
+           channelID = inCmd.cmdHeader.channelID;
 
            packet = inCmd.packet;
 
