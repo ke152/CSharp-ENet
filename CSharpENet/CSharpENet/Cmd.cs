@@ -9,7 +9,7 @@ namespace ENet;
 class ENetAckCmd
 {
     public uint sentTime;
-    public ENetProto cmd;
+    public ENetProtoCmdHeader commandHeader;
 };
 
 class ENetOutCmd
@@ -22,7 +22,7 @@ class ENetOutCmd
     public uint fragmentOffset;
     public uint fragmentLength;
     public uint sendAttempts;
-    public ENetProto command;
+    public ENetProtoCmdHeader commandHeader;
     public ENetPacket? packet;
 };
 
