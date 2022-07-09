@@ -280,10 +280,7 @@ class ENetPeer
         ack.sentTime = sentTime;
         ack.cmd = cmd;
 
-        unsafe
-        {
-            this.outgoingDataTotal += Convert.ToUInt32(new ENetAckCmd());
-        }
+        this.outgoingDataTotal += Marshal.SizeOf<ENetAckCmd>();
 
         acknowledgements.AddLast(ack);
 
@@ -304,7 +301,7 @@ class ENetPeer
     {
         unsafe
         {
-            outgoingDataTotal += ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.command.header.command&(int)ENetProtoCmdType.Mask)] + outCmd.fragmentLength;
+            outgoingDataTotal += (int)ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.command.header.command&(int)ENetProtoCmdType.Mask)] + (int)outCmd.fragmentLength;
         }
 
         if (outCmd.command.header.channelID == 0xFF)
