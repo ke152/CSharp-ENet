@@ -160,14 +160,14 @@ class ENetPeer
 
             ENetInCmd inCmd = currentCmd.Value;
 
-            if ((inCmd.cmdHeader.command & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.SendUnseq)
+            if ((inCmd.commandHeader.command & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.SendUnseq)
                 continue;
 
-            if (inCmd.reliableSeqNum == channel.incomingReliableSequenceNumber)
+            if (inCmd.reliableSequenceNumber  == channel.incomingReliableSequenceNumber)
             {
                 if (inCmd.fragmentsRemaining <= 0)
                 {
-                    channel.incomingUnreliableSequenceNumber = inCmd.unreliableSeqNum;
+                    channel.incomingUnreliableSequenceNumber = inCmd.unreliableSequenceNumber;
                     continue;
                 }
 
@@ -189,9 +189,9 @@ class ENetPeer
             }
             else
             {
-                ushort reliableWindow = (ushort)(inCmd.reliableSeqNum / (ushort)ENetDef.PeerReliableWindowSize),
+                ushort reliableWindow = (ushort)(inCmd.reliableSequenceNumber  / (ushort)ENetDef.PeerReliableWindowSize),
                             currentWindow = (ushort)(channel.incomingReliableSequenceNumber / (ushort)ENetDef.PeerReliableWindowSize);
-                if (inCmd.reliableSeqNum < channel.incomingReliableSequenceNumber)
+                if (inCmd.reliableSequenceNumber  < channel.incomingReliableSequenceNumber)
                     reliableWindow += (ushort)ENetDef.PeerReliableWindows;
                 if (reliableWindow >= currentWindow && reliableWindow < currentWindow + (ushort)ENetDef.PeerFreeReliableWindows - 1)
                     break;
@@ -238,10 +238,10 @@ class ENetPeer
              currentCmd = currentCmd?.Next)//Last.Next不知道最后一个会不会执行
         {
             if (currentCmd.Value.fragmentsRemaining > 0 ||
-                currentCmd.Value.reliableSeqNum != channel.incomingReliableSequenceNumber + 1)
+                currentCmd.Value.reliableSequenceNumber  != channel.incomingReliableSequenceNumber + 1)
                 break;
 
-            channel.incomingReliableSequenceNumber = currentCmd.Value.reliableSeqNum;
+            channel.incomingReliableSequenceNumber = currentCmd.Value.reliableSequenceNumber ;
 
             if (currentCmd.Value.fragmentCount > 0)
                 channel.incomingReliableSequenceNumber += currentCmd.Value.fragmentCount - 1;
@@ -261,15 +261,15 @@ class ENetPeer
         DispatchInUnreliableCmds(channel, queuedCmd);
     }
 
-    public void QueueAck(ENetProto cmd, uint sentTime)
+    public void QueueAck(ENetProtoCmdHeader cmdHeader, uint sentTime)
     {
-        if (cmd.header.channelID < channels?.Length)
+        if (cmdHeader.channelID < channels?.Length)
         {
-            ENetChannel channel = channels[cmd.header.channelID];
-            uint reliableWindow = cmd.header.reliableSequenceNumber / Convert.ToUInt32(ENetDef.PeerReliableWindowSize),
+            ENetChannel channel = channels[cmdHeader.channelID];
+            uint reliableWindow = cmdHeader.reliableSequenceNumber / Convert.ToUInt32(ENetDef.PeerReliableWindowSize),
                         currentWindow = channel.incomingReliableSequenceNumber / Convert.ToUInt32(ENetDef.PeerReliableWindowSize);
 
-            if (cmd.header.reliableSequenceNumber < channel.incomingReliableSequenceNumber)
+            if (cmdHeader.reliableSequenceNumber < channel.incomingReliableSequenceNumber)
                 reliableWindow += Convert.ToUInt32(ENetDef.PeerReliableWindows);
 
             if (reliableWindow >= currentWindow + Convert.ToUInt32(ENetDef.PeerReliableWindows) - 1 && reliableWindow <= currentWindow + Convert.ToUInt32(ENetDef.PeerReliableWindows))
@@ -278,7 +278,7 @@ class ENetPeer
 
         ENetAckCmd ack = new ENetAckCmd();
         ack.sentTime = sentTime;
-        ack.cmd = cmd;
+        ack.commandHeader = cmdHeader;
 
         this.outgoingDataTotal += Marshal.SizeOf<ENetAckCmd>();
 
@@ -289,7 +289,7 @@ class ENetPeer
     public void QueueOutgoingCommand(ENetProto cmd, ENetPacket? packet, uint offset, uint length)
     {
         ENetOutCmd outCmd = new();
-        outCmd.command = cmd;
+        outCmd.commandHeader = cmd;
         outCmd.fragmentOffset = offset;
         outCmd.fragmentLength = length;
         outCmd.packet = packet;
@@ -301,10 +301,10 @@ class ENetPeer
     {
         unsafe
         {
-            outgoingDataTotal += (int)ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.command.header.command&(int)ENetProtoCmdType.Mask)] + (int)outCmd.fragmentLength;
+            outgoingDataTotal += (int)ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.commandHeader.header.command&(int)ENetProtoCmdType.Mask)] + (int)outCmd.fragmentLength;
         }
 
-        if (outCmd.command.header.channelID == 0xFF)
+        if (outCmd.commandHeader.header.channelID == 0xFF)
         {
             ++outReliableSeqNum;
 
@@ -313,9 +313,9 @@ class ENetPeer
         }
         else
         {
-            ENetChannel channel = channels[outCmd.command.header.channelID];
+            ENetChannel channel = channels[outCmd.commandHeader.header.channelID];
 
-            if ((outCmd.command.header.command & (int)ENetProtoFlag.CmdFlagAck) != 0)
+            if ((outCmd.commandHeader.header.command & (int)ENetProtoFlag.CmdFlagAck) != 0)
             {
                 ++channel.outgoingReliableSequenceNumber;
                 channel.outgoingUnreliableSequenceNumber = 0;
@@ -325,7 +325,7 @@ class ENetPeer
             }
             else
             {
-                if ((outCmd.command.header.command & (int)ENetProtoFlag.CmdFlagUnSeq) != 0)
+                if ((outCmd.commandHeader.header.command & (int)ENetProtoFlag.CmdFlagUnSeq) != 0)
                 {
                     ++outUnSeqGroup;
 
@@ -348,16 +348,16 @@ class ENetPeer
         outCmd.sentTime = 0;
         outCmd.roundTripTimeout = 0;
         outCmd.roundTripTimeoutLimit = 0;
-        outCmd.command.header.reliableSequenceNumber = Utils.HostToNetOrder(outCmd.reliableSequenceNumber);
+        outCmd.commandHeader.header.reliableSequenceNumber = Utils.HostToNetOrder(outCmd.reliableSequenceNumber);
 
-        switch (outCmd.command.header.command & (int)ENetProtoCmdType.Mask)
+        switch (outCmd.commandHeader.header.command & (int)ENetProtoCmdType.Mask)
         {
             case (int)ENetProtoCmdType.SendUnreliable:
-                outCmd.command.sendUnReliable.unreliableSeqNum = Utils.HostToNetOrder(outCmd.unreliableSeqNum);
+                outCmd.commandHeader.sendUnReliable.unreliableSeqNum = Utils.HostToNetOrder(outCmd.unreliableSeqNum);
                 break;
 
             case (int)ENetProtoCmdType.SendUnseq:
-                outCmd.command.sendUnsequenced.unsequencedGroup = Utils.HostToNetOrder(outUnSeqGroup);
+                outCmd.commandHeader.sendUnsequenced.unsequencedGroup = Utils.HostToNetOrder(outUnSeqGroup);
                 break;
 
             default:
@@ -366,11 +366,12 @@ class ENetPeer
         outgoingCommands.AddLast(outCmd);
     }
 
-    public ENetInCmd? QueueInCmd(ENetProto cmd, byte[] data, uint dataLength, int flags, uint fragmentCount)
+    public ENetInCmd? QueueInCmd(ENetProtoCmdHeader cmdHeader, byte[]? data, uint dataLength, int flags, uint fragmentCount, uint sendUnreliableSeqNum=0)
     {
         ENetInCmd dummyCmd = new();
 
-        ENetChannel channel = channels[cmd.header.channelID];
+        if (channels == null) return null;
+        ENetChannel channel = channels[cmdHeader.channelID];
         uint unreliableSeqNum = 0, reliableSeqNum = 0;
         uint reliableWindow, currentWindow;
         ENetInCmd inCmd;
@@ -380,9 +381,9 @@ class ENetPeer
         if (state == ENetPeerState.DisconnectLater)
             goto discardcmd;
 
-        if ((cmd.header.command & (int)ENetProtoCmdType.SendUnseq) != 0)
+        if ((cmdHeader.command & (int)ENetProtoCmdType.SendUnseq) != 0)
         {
-            reliableSeqNum = cmd.header.reliableSequenceNumber;
+            reliableSeqNum = cmdHeader.reliableSequenceNumber;
             reliableWindow = reliableSeqNum / ENetDef.PeerReliableWindowSize;
             currentWindow = channel.incomingReliableSequenceNumber / ENetDef.PeerReliableWindowSize;
 
@@ -394,7 +395,7 @@ class ENetPeer
         }
 
 
-        switch (cmd.header.command & (int)ENetProtoCmdType.Mask)
+        switch (cmdHeader.command & (int)ENetProtoCmdType.Mask)
         {
             case (int)ENetProtoCmdType.SendFragment:
             case (int)ENetProtoCmdType.SendReliable:
@@ -409,16 +410,16 @@ class ENetPeer
 
                     if (reliableSeqNum >= channel.incomingReliableSequenceNumber)
                     {
-                        if (inCmd.reliableSeqNum < channel.incomingReliableSequenceNumber)
+                        if (inCmd.reliableSequenceNumber  < channel.incomingReliableSequenceNumber)
                             continue;
                     }
                     else
-                    if (inCmd.reliableSeqNum >= channel.incomingReliableSequenceNumber)
+                    if (inCmd.reliableSequenceNumber  >= channel.incomingReliableSequenceNumber)
                         break;
 
-                    if (inCmd.reliableSeqNum <= reliableSeqNum)
+                    if (inCmd.reliableSequenceNumber  <= reliableSeqNum)
                     {
-                        if (inCmd.reliableSeqNum < reliableSeqNum)
+                        if (inCmd.reliableSequenceNumber  < reliableSeqNum)
                             break;
 
                         goto discardcmd;
@@ -428,7 +429,7 @@ class ENetPeer
 
             case (int)ENetProtoCmdType.SendUnreliable:
             case (int)ENetProtoCmdType.SendUnreliableFragment:
-                unreliableSeqNum = Utils.NetToHostOrder(cmd.sendUnReliable.unreliableSeqNum);
+                unreliableSeqNum = Utils.NetToHostOrder(sendUnreliableSeqNum);
                 
                 if (reliableSeqNum == channel.incomingReliableSequenceNumber &&
                     unreliableSeqNum <= channel.incomingUnreliableSequenceNumber)
@@ -440,27 +441,27 @@ class ENetPeer
                 {
                     inCmd = currCmd.Value;
 
-                    if ((cmd.header.command & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.SendUnreliable)
+                    if ((cmdHeader.command & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.SendUnreliable)
                         continue;
 
                     if (reliableSeqNum >= channel.incomingReliableSequenceNumber)
                     {
-                        if (inCmd.reliableSeqNum < channel.incomingReliableSequenceNumber)
+                        if (inCmd.reliableSequenceNumber  < channel.incomingReliableSequenceNumber)
                             continue;
                     }
                     else
-                    if (inCmd.reliableSeqNum >= channel.incomingReliableSequenceNumber)
+                    if (inCmd.reliableSequenceNumber  >= channel.incomingReliableSequenceNumber)
                         break;
 
-                    if (inCmd.reliableSeqNum < reliableSeqNum)
+                    if (inCmd.reliableSequenceNumber  < reliableSeqNum)
                         break;
 
-                    if (inCmd.reliableSeqNum > reliableSeqNum)
+                    if (inCmd.reliableSequenceNumber  > reliableSeqNum)
                         continue;
 
-                    if (inCmd.unreliableSeqNum <= unreliableSeqNum)
+                    if (inCmd.unreliableSequenceNumber <= unreliableSeqNum)
                     {
-                        if (inCmd.unreliableSeqNum < unreliableSeqNum)
+                        if (inCmd.unreliableSequenceNumber < unreliableSeqNum)
                             break;
 
                         goto discardcmd;
@@ -485,9 +486,9 @@ class ENetPeer
 
         inCmd = new();
 
-        inCmd.reliableSeqNum = cmd.header.reliableSequenceNumber;
-        inCmd.unreliableSeqNum = unreliableSeqNum & 0xFFFF;
-        inCmd.cmdHeader = cmd.header;
+        inCmd.reliableSequenceNumber  = cmdHeader.reliableSequenceNumber;
+        inCmd.unreliableSequenceNumber = unreliableSeqNum & 0xFFFF;
+        inCmd.commandHeader = cmdHeader;
         inCmd.fragmentCount = fragmentCount;
         inCmd.fragmentsRemaining = fragmentCount;
         inCmd.packet = packet;
@@ -506,7 +507,7 @@ class ENetPeer
             channel.incomingReliableCommands.AddAfter(currCmd, inCmd);
         }
 
-        switch (cmd.header.command & (int)ENetProtoCmdType.Mask)
+        switch (cmdHeader.command & (int)ENetProtoCmdType.Mask)
         {
             case (int)ENetProtoCmdType.SendFragment:
             case (int)ENetProtoCmdType.SendReliable:
@@ -586,14 +587,14 @@ class ENetPeer
                 fragment.fragmentOffset = fragmentOffset;
                 fragment.fragmentLength = fragmentLength;
                 fragment.packet = packet;
-                fragment.command.header.command = cmdNum;
-                fragment.command.header.channelID = channelID;
-                fragment.command.sendFragment.startSequenceNumber = startSequenceNumber;
-                fragment.command.sendFragment.dataLength = (uint)IPAddress.HostToNetworkOrder(fragmentLength);
-                fragment.command.sendFragment.fragmentCount = (uint)IPAddress.HostToNetworkOrder (fragmentCount);
-                fragment.command.sendFragment.fragmentNumber = (uint)IPAddress.HostToNetworkOrder (fragmentNumber);
-                fragment.command.sendFragment.totalLength = (uint)IPAddress.HostToNetworkOrder (packet.DataLength);
-                fragment.command.sendFragment.fragmentOffset = (uint)IPAddress.NetworkToHostOrder(fragmentOffset);
+                fragment.commandHeader.header.command = cmdNum;
+                fragment.commandHeader.header.channelID = channelID;
+                fragment.commandHeader.sendFragment.startSequenceNumber = startSequenceNumber;
+                fragment.commandHeader.sendFragment.dataLength = (uint)IPAddress.HostToNetworkOrder(fragmentLength);
+                fragment.commandHeader.sendFragment.fragmentCount = (uint)IPAddress.HostToNetworkOrder (fragmentCount);
+                fragment.commandHeader.sendFragment.fragmentNumber = (uint)IPAddress.HostToNetworkOrder (fragmentNumber);
+                fragment.commandHeader.sendFragment.totalLength = (uint)IPAddress.HostToNetworkOrder (packet.DataLength);
+                fragment.commandHeader.sendFragment.fragmentOffset = (uint)IPAddress.NetworkToHostOrder(fragmentOffset);
 
                 fragments.Add(fragment);
             }
@@ -647,7 +648,7 @@ class ENetPeer
 
            inCmd = this.dispatchedCommands.First.Value;
 
-           channelID = inCmd.cmdHeader.channelID;
+           channelID = inCmd.commandHeader.channelID;
 
            packet = inCmd.packet;
 
