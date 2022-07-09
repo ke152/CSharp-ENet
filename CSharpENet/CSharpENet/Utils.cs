@@ -8,9 +8,9 @@ class Utils
     private static DateTime timeStart = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     private static DateTime timeBase = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-    public static ulong TimeGet()
+    public static long TimeGet()
     {
-        return (ulong)(DateTime.UtcNow - timeBase).TotalMilliseconds;
+        return (long)(DateTime.UtcNow - timeBase).TotalMilliseconds;
     }
     public static void TimeSet(ulong newTimeBase)
     {
