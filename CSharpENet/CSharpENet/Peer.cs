@@ -289,7 +289,7 @@ class ENetPeer
     public void QueueOutgoingCommand(ENetProto cmd, ENetPacket? packet, uint offset, uint length)
     {
         ENetOutCmd outCmd = new();
-        outCmd.commandHeader = cmd;
+        outCmd.cmd = cmd;
         outCmd.fragmentOffset = offset;
         outCmd.fragmentLength = length;
         outCmd.packet = packet;
@@ -301,10 +301,10 @@ class ENetPeer
     {
         unsafe
         {
-            outgoingDataTotal += (int)ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.commandHeader.header.command&(int)ENetProtoCmdType.Mask)] + (int)outCmd.fragmentLength;
+            outgoingDataTotal += (int)ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.commandHeader.command&(int)ENetProtoCmdType.Mask)] + (int)outCmd.fragmentLength;
         }
 
-        if (outCmd.commandHeader.header.channelID == 0xFF)
+        if (outCmd.commandHeader.channelID == 0xFF)
         {
             ++outReliableSeqNum;
 
@@ -313,9 +313,9 @@ class ENetPeer
         }
         else
         {
-            ENetChannel channel = channels[outCmd.commandHeader.header.channelID];
+            ENetChannel channel = channels[outCmd.commandHeader.channelID];
 
-            if ((outCmd.commandHeader.header.command & (int)ENetProtoFlag.CmdFlagAck) != 0)
+            if ((outCmd.commandHeader.command & (int)ENetProtoFlag.CmdFlagAck) != 0)
             {
                 ++channel.outgoingReliableSequenceNumber;
                 channel.outgoingUnreliableSequenceNumber = 0;
@@ -325,7 +325,7 @@ class ENetPeer
             }
             else
             {
-                if ((outCmd.commandHeader.header.command & (int)ENetProtoFlag.CmdFlagUnSeq) != 0)
+                if ((outCmd.commandHeader.command & (int)ENetProtoFlag.CmdFlagUnSeq) != 0)
                 {
                     ++outUnSeqGroup;
 
@@ -348,16 +348,16 @@ class ENetPeer
         outCmd.sentTime = 0;
         outCmd.roundTripTimeout = 0;
         outCmd.roundTripTimeoutLimit = 0;
-        outCmd.commandHeader.header.reliableSequenceNumber = Utils.HostToNetOrder(outCmd.reliableSequenceNumber);
+        outCmd.commandHeader.reliableSequenceNumber = Utils.HostToNetOrder(outCmd.reliableSequenceNumber);
 
-        switch (outCmd.commandHeader.header.command & (int)ENetProtoCmdType.Mask)
+        switch (outCmd.commandHeader.command & (int)ENetProtoCmdType.Mask)
         {
             case (int)ENetProtoCmdType.SendUnreliable:
-                outCmd.commandHeader.sendUnReliable.unreliableSeqNum = Utils.HostToNetOrder(outCmd.unreliableSeqNum);
+                outCmd.cmd.sendUnReliable.unreliableSeqNum = Utils.HostToNetOrder(outCmd.unreliableSeqNum);
                 break;
 
             case (int)ENetProtoCmdType.SendUnseq:
-                outCmd.commandHeader.sendUnsequenced.unsequencedGroup = Utils.HostToNetOrder(outUnSeqGroup);
+                outCmd.cmd.sendUnsequenced.unsequencedGroup = Utils.HostToNetOrder(outUnSeqGroup);
                 break;
 
             default:
@@ -587,14 +587,14 @@ class ENetPeer
                 fragment.fragmentOffset = fragmentOffset;
                 fragment.fragmentLength = fragmentLength;
                 fragment.packet = packet;
-                fragment.commandHeader.header.command = cmdNum;
-                fragment.commandHeader.header.channelID = channelID;
-                fragment.commandHeader.sendFragment.startSequenceNumber = startSequenceNumber;
-                fragment.commandHeader.sendFragment.dataLength = (uint)IPAddress.HostToNetworkOrder(fragmentLength);
-                fragment.commandHeader.sendFragment.fragmentCount = (uint)IPAddress.HostToNetworkOrder (fragmentCount);
-                fragment.commandHeader.sendFragment.fragmentNumber = (uint)IPAddress.HostToNetworkOrder (fragmentNumber);
-                fragment.commandHeader.sendFragment.totalLength = (uint)IPAddress.HostToNetworkOrder (packet.DataLength);
-                fragment.commandHeader.sendFragment.fragmentOffset = (uint)IPAddress.NetworkToHostOrder(fragmentOffset);
+                fragment.commandHeader.command = cmdNum;
+                fragment.commandHeader.channelID = channelID;
+                fragment.cmd.sendFragment.startSequenceNumber = startSequenceNumber;
+                fragment.cmd.sendFragment.dataLength = (uint)IPAddress.HostToNetworkOrder(fragmentLength);
+                fragment.cmd.sendFragment.fragmentCount = (uint)IPAddress.HostToNetworkOrder (fragmentCount);
+                fragment.cmd.sendFragment.fragmentNumber = (uint)IPAddress.HostToNetworkOrder (fragmentNumber);
+                fragment.cmd.sendFragment.totalLength = (uint)IPAddress.HostToNetworkOrder (packet.DataLength);
+                fragment.cmd.sendFragment.fragmentOffset = (uint)IPAddress.NetworkToHostOrder(fragmentOffset);
 
                 fragments.Add(fragment);
             }
