@@ -82,7 +82,7 @@ class Utils
 
         for (int i = start; i < start + length; i++)
         {
-            result[i-start] = data[i];
+            result[i - start] = data[i];
         }
 
         return result;
