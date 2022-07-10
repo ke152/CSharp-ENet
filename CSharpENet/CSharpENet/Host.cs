@@ -53,6 +53,10 @@ class ENetHost : Singleton<ENetHost>
             return;
 
         this.peers = new ENetPeer[peerCount];
+        for (int i = 0; i < peerCount; i++)
+        {
+            this.peers[i] = new ENetPeer();
+        }
 
         this.socket = new ENetSocket();
         this.socket.Bind(address);
