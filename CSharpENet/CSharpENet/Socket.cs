@@ -57,7 +57,9 @@ class ENetSocket
         switch (type)
         {
             case ENetSocketOptType.NonBlock:
-                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.UnblockSource, value);
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, 1000);
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendTimeout, 1000);
+                //socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.UnblockSource, value);
                 break;
             case ENetSocketOptType.Broadcast:
                 socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, value);
