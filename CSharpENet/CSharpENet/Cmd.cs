@@ -9,20 +9,20 @@ namespace ENet;
 class ENetAckCmd
 {
     public uint sentTime;
-    public ENetProtoCmdHeader commandHeader;
+    public ENetProtoCmdHeader cmdHeader;
 };
 
 class ENetOutCmd
 {
-    public uint reliableSequenceNumber;
+    public uint reliableSeqNum;
     public uint unreliableSeqNum;
-    public uint sentTime;
-    public uint roundTripTimeout;
-    public uint roundTripTimeoutLimit;
+    public long sentTime;
+    public long rttTimeout;
+    public long rttTimeoutLimit;
     public uint fragmentOffset;
     public uint fragmentLength;
     public uint sendAttempts;
-    public ENetProtoCmdHeader commandHeader
+    public ENetProtoCmdHeader cmdHeader
     {
         get { return this.cmd.header; }
         set { this.cmd.header = value; }
@@ -33,9 +33,9 @@ class ENetOutCmd
 
 class ENetInCmd
 {
-    public uint reliableSequenceNumber ;
-    public uint unreliableSequenceNumber;
-    public ENetProtoCmdHeader commandHeader;
+    public uint reliableSeqNum ;
+    public uint unreliableSeqNum;
+    public ENetProtoCmdHeader cmdHeader;
     public uint fragmentCount;
     public uint fragmentsRemaining;
     public uint[]? fragments;

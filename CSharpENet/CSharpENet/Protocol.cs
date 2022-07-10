@@ -72,29 +72,29 @@ struct ENetProtoHeader
 
 class ENetProtoCmdHeader
 {
-    public int command;
+    public int cmdFlag;
     public uint channelID;
-    public uint reliableSequenceNumber;
+    public uint reliableSeqNum;
 };
 
 class ENetProtoAck
 {
     public ENetProtoCmdHeader header;
-    public uint receivedReliableSequenceNumber;
+    public uint receivedReliableSeqNum;
     public uint receivedSentTime;
 };
 
 class ENetProtoConnect
 {
     public ENetProtoCmdHeader header;
-    public uint outgoingPeerID;
-    public uint incomingSessionID;
-    public uint outgoingSessionID;
+    public uint outPeerID;
+    public uint inSessionID;
+    public uint outSessionID;
     public uint mtu;
     public uint windowSize;
     public uint channelCount;
-    public uint incomingBandwidth;
-    public uint outgoingBandwidth;
+    public uint inBandwidth;
+    public uint outBandwidth;
     public uint packetThrottleInterval;
     public uint packetThrottleAcceleration;
     public uint packetThrottleDeceleration;
@@ -105,14 +105,14 @@ class ENetProtoConnect
 class ENetProtoVerifyConnect
 {
     public ENetProtoCmdHeader header;
-    public uint outgoingPeerID;
-    public uint incomingSessionID;
-    public uint outgoingSessionID;
+    public uint outPeerID;
+    public uint inSessionID;
+    public uint outSessionID;
     public uint mtu;
     public uint windowSize;
     public uint channelCount;
-    public uint incomingBandwidth;
-    public uint outgoingBandwidth;
+    public uint inBandwidth;
+    public uint outBandwidth;
     public uint packetThrottleInterval;
     public uint packetThrottleAcceleration;
     public uint packetThrottleDeceleration;
@@ -122,8 +122,8 @@ class ENetProtoVerifyConnect
 class ENetProtoBandwidthLimit
 {
     public ENetProtoCmdHeader header;
-    public uint incomingBandwidth;
-    public uint outgoingBandwidth;
+    public uint inBandwidth;
+    public uint outBandwidth;
 };
 
 class ENetProtoThrottleConfigure
@@ -161,17 +161,17 @@ class ENetProtoSendUnReliable
 class ENetProtoSendUnsequenced
 {
     public ENetProtoCmdHeader header;
-    public uint unsequencedGroup;
+    public uint unseqGroup;
     public uint dataLength;
 };
 
 class ENetProtoSendFragment
 {
     public ENetProtoCmdHeader header;
-    public uint startSequenceNumber;
+    public uint startSeqNum;
     public uint dataLength;
     public uint fragmentCount;
-    public uint fragmentNumber;
+    public uint fragmentNum;
     public uint totalLength;
     public uint fragmentOffset;
 };
@@ -179,14 +179,14 @@ class ENetProtoSendFragment
 class ENetProto
 {
     public ENetProtoCmdHeader header;
-    public ENetProtoAck acknowledge;
+    public ENetProtoAck ack;
     public ENetProtoConnect connect;
     public ENetProtoVerifyConnect verifyConnect;
     public ENetProtoDisconnect disconnect;
     public ENetProtoPing ping;
     public ENetProtoSendReliable sendReliable;
     public ENetProtoSendUnReliable sendUnReliable;
-    public ENetProtoSendUnsequenced sendUnsequenced;
+    public ENetProtoSendUnsequenced sendUnseq;
     public ENetProtoSendFragment sendFragment;
     public ENetProtoBandwidthLimit bandwidthLimit;
     public ENetProtoThrottleConfigure throttleConfigure;
