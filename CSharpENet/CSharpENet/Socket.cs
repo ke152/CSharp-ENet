@@ -57,8 +57,8 @@ class ENetSocket
         switch (type)
         {
             case ENetSocketOptType.NonBlock:
-                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, 1000);
-                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendTimeout, 1000);
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, 10000*1000);
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendTimeout, 10000*1000);
                 //socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.UnblockSource, value);
                 break;
             case ENetSocketOptType.Broadcast:
@@ -155,9 +155,18 @@ class ENetSocket
 
     public int Receive(byte[] buffer, ref IPEndPoint? ep)
     {
-        int length = socket.Receive(buffer);
-        ep = socket.RemoteEndPoint as IPEndPoint;
-        return length;
+        try
+        {
+            int length = socket.Receive(buffer);
+            ep = socket.RemoteEndPoint as IPEndPoint;
+            Console.WriteLine($"socket recv length:{length}");
+            return length;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.Message);
+            return 0;
+        }
     }
 
 

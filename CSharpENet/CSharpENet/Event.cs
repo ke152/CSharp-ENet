@@ -13,6 +13,11 @@ namespace ENet
         public uint channelID; /**< channel on the peer that generated the event, if appropriate */
         public uint data;      /**< data associated with the event, if appropriate */
         public ENetPacket? packet = null;    /**< packet associated with the event, if appropriate */
+
+        public ENetEvent()
+        {
+
+        }
     }
 
     enum ENetEventType

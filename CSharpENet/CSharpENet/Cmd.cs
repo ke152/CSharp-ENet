@@ -9,7 +9,7 @@ namespace ENet;
 class ENetAckCmd
 {
     public uint sentTime;
-    public ENetProtoCmdHeader cmdHeader;
+    public ENetProtoCmdHeader cmdHeader = new();
 };
 
 class ENetOutCmd
@@ -35,9 +35,9 @@ class ENetInCmd
 {
     public uint reliableSeqNum ;
     public uint unreliableSeqNum;
-    public ENetProtoCmdHeader cmdHeader;
+    public ENetProtoCmdHeader cmdHeader = new();
     public uint fragmentCount;
     public uint fragmentsRemaining;
     public uint[]? fragments;
-    public ENetPacket packet;
+    public ENetPacket? packet = null;
 };

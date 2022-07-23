@@ -8,8 +8,8 @@ class ENetChannel
     public uint[] reliableWindows = new uint[(int)ENetDef.PeerReliableWindows];
     public uint inReliableSeqNum = 0;
     public uint inUnreliableSeqNum = 0;
-    public LinkedList<ENetInCmd> inReliableCmds = new();
-    public LinkedList<ENetInCmd> inUnreliableCmds = new();
+    public List<ENetInCmd> inReliableCmds = new();
+    public List<ENetInCmd> inUnreliableCmds = new();
 
     public ENetChannel()
     {

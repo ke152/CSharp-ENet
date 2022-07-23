@@ -61,11 +61,11 @@ class ENetPeer
     public uint windowSize;
     public uint reliableDataInTransit;
     public uint outReliableSeqNum;
-    public LinkedList<ENetAckCmd> acknowledgements = new();
-    public LinkedList<ENetOutCmd> sentReliableCmds = new();
-    public LinkedList<ENetOutCmd> sentUnreliableCmds = new();
-    public LinkedList<ENetOutCmd> outCmds = new();
-    public LinkedList<ENetInCmd> dispatchedCmnds = new();
+    public List<ENetAckCmd> acknowledgements = new();
+    public List<ENetOutCmd> sentReliableCmds = new();
+    public List<ENetOutCmd> sentUnreliableCmds = new();
+    public List<ENetOutCmd> outCmds = new();
+    public List<ENetInCmd> dispatchedCmnds = new();
     public bool needDispatch = false;//flags
     public uint reserved;
     public uint inUnseqGroup;
@@ -75,31 +75,34 @@ class ENetPeer
     public uint totalWaitingData;
 
     //TODO:直接Clear不需要进行函数调用
-    public void ResetCmds(LinkedList<ENetOutCmd> list)
+    public void ResetCmds(List<ENetOutCmd> list)
     {
         list.Clear();
         GC.Collect();
     }
 
-    public void RemoveInCmds(LinkedList<ENetInCmd> list, ENetInCmd? startCmd, ENetInCmd? endCmd, ENetInCmd excludeCmd)
+    public void RemoveInCmds(List<ENetInCmd> list, ENetInCmd? startCmd, ENetInCmd? endCmd, ENetInCmd excludeCmd)
     {
         if (list == null || startCmd == null || endCmd == null) return;
         if (list.Count == 0) return;
 
-        for (LinkedListNode<ENetInCmd>? currNode = list.First; currNode != null && currNode.Value.Equals(endCmd); currNode = currNode?.Next)
+        ENetInCmd currCmd;
+        int i = 0;
+        bool canDelete = false;
+        while (i < list.Count)
         {
-            if (currNode.Value.Equals(excludeCmd))
+            currCmd = list[i];
+            if (currCmd == startCmd) canDelete = true;
+            if (currCmd == endCmd) canDelete = false;
+
+            if (canDelete && currCmd != excludeCmd)
             {
+                list.Remove(currCmd);
                 continue;
             }
 
-            currNode = currNode.Previous;
-            if (currNode != null && currNode.Next != null)
-            {
-                list.Remove(currNode.Next);
-            }
+            i++;
         }
-
     }
 
     //TODO：要把自己从dispatchList里remove。看谁调用，从谁哪里remove
@@ -141,20 +144,20 @@ class ENetPeer
     }
 
     //TODO：这个函数可能应该交给channel
-    public void DispatchInUnreliableCmds(ENetChannel channel, ENetInCmd queuedCmd)
+    public void DispatchInUnreliableCmds(ENetChannel channel, ENetInCmd? queuedCmd)
     {
         if (channel.inUnreliableCmds.Count == 0) return;
         if (channel.inUnreliableCmds == null) return;
 
-        LinkedListNode<ENetInCmd>? startCmd = channel.inUnreliableCmds.First;
-        LinkedListNode<ENetInCmd>? droppedCmd = startCmd;
-        LinkedListNode<ENetInCmd>? currentCmd = startCmd;
+        ENetInCmd startCmd = channel.inUnreliableCmds.First();
+        ENetInCmd droppedCmd = startCmd;
+        ENetInCmd currentCmd = startCmd;
 
         if (startCmd == null || currentCmd == null) return;
 
         for (;
              currentCmd != null && !ReferenceEquals(currentCmd, channel.inUnreliableCmds.Last?.Next);
-             currentCmd = currentCmd.Next)//Last.Next不知道最后一个会不会执行
+             currentCmd = currentCmd.Next)
         {
             if (currentCmd == null) break;
 
@@ -177,7 +180,7 @@ class ENetPeer
 
                     if (!needDispatch)
                     {
-                        ENetHost.Instance.dispatchQueue.AddLast(this);
+                        ENetHost.Instance.dispatchQueue.Add(this);
                         needDispatch = true;
                     }
 
@@ -204,7 +207,7 @@ class ENetPeer
 
                     if (!needDispatch)
                     {
-                        ENetHost.Instance.dispatchQueue.AddLast(this);
+                        ENetHost.Instance.dispatchQueue.Add(this);
                         needDispatch = true;
                     }
                 }
@@ -217,7 +220,7 @@ class ENetPeer
 
             if (!needDispatch)
             {
-                ENetHost.Instance.dispatchQueue.AddLast(this);
+                ENetHost.Instance.dispatchQueue.Add(this);
                 needDispatch = true;
             }
 
@@ -227,10 +230,10 @@ class ENetPeer
         RemoveInCmds(channel.inUnreliableCmds, channel.inUnreliableCmds.First?.Value, droppedCmd?.Value, queuedCmd);
     }
 
-    public void DispatchInReliableCmds(ENetChannel channel, ENetInCmd queuedCmd)
+    public void DispatchInReliableCmds(ENetChannel channel, ENetInCmd? queuedCmd)
     {
-        LinkedListNode<ENetInCmd>? currentCmd = channel.inReliableCmds.First;
-        LinkedListNode<ENetInCmd>? startCmd = currentCmd;
+        ListNode<ENetInCmd>? currentCmd = channel.inReliableCmds.First;
+        ListNode<ENetInCmd>? startCmd = currentCmd;
         if (startCmd == null) return;
 
         for (;
@@ -299,10 +302,11 @@ class ENetPeer
 
     public void SetupOutCmd(ENetOutCmd outCmd)
     {
-        unsafe
-        {
-            outDataTotal += (int)ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.cmdHeader.cmdFlag&(int)ENetProtoCmdType.Mask)] + (int)outCmd.fragmentLength;
-        }
+        outDataTotal += (int)ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.cmdHeader.cmdFlag & (int)ENetProtoCmdType.Mask)] + (int)outCmd.fragmentLength;
+        //unsafe
+        //{
+        //    outDataTotal += (int)ENetProtoCmdSize.CmdSize[Convert.ToInt32(outCmd.cmdHeader.cmdFlag&(int)ENetProtoCmdType.Mask)] + (int)outCmd.fragmentLength;
+        //}
 
         if (outCmd.cmdHeader.channelID == 0xFF)
         {
@@ -375,7 +379,7 @@ class ENetPeer
         uint unreliableSeqNum = 0, reliableSeqNum = 0;
         uint reliableWindow, currentWindow;
         ENetInCmd inCmd;
-        LinkedListNode<ENetInCmd>? currCmd;
+        ListNode<ENetInCmd>? currCmd;
         ENetPacket packet;
 
         if (state == ENetPeerState.DisconnectLater)

@@ -23,11 +23,11 @@ class Utils
 
     public static uint HostToNetOrder(uint value)
     {
-        return Convert.ToUInt32(IPAddress.HostToNetworkOrder(value));
+        return Convert.ToUInt32(IPAddress.HostToNetworkOrder(Convert.ToInt32(value)));
     }
     public static uint NetToHostOrder(uint value)
     {
-        return Convert.ToUInt32(IPAddress.NetworkToHostOrder(value));
+        return Convert.ToUInt32(IPAddress.NetworkToHostOrder(Convert.ToInt32(value)));
     }
 
 

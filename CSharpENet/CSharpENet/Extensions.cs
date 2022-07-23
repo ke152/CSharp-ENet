@@ -1,10 +1,10 @@
 ﻿namespace ENet;
 
-static class LinkedListExtension
+static class ListExtension
 {
-    static public void AddLastRange<T>(this LinkedList<T> list, LinkedListNode<T> startNode, LinkedListNode<T>? endNode)
+    static public void AddLastRange<T>(this List<T> list, ListNode<T> startNode, ListNode<T>? endNode)
     {
-        LinkedListNode<T>? currNode = startNode;
+        ListNode<T>? currNode = startNode;
 
         while (currNode != null && !currNode.Equals(endNode))
         {

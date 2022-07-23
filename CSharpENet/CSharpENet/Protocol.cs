@@ -47,7 +47,7 @@ static class ENetProtoCmdSize
         List<uint> cmdSizeList = new List<uint>();
 
         cmdSizeList.Add(0);
-        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoAck())));
+        cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf<ENetProtoAck>()));
         cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoConnect())));
         cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoVerifyConnect())));
         cmdSizeList.Add(Convert.ToUInt32(Marshal.SizeOf(new ENetProtoDisconnect())));
@@ -72,122 +72,177 @@ struct ENetProtoHeader
 
 class ENetProtoCmdHeader
 {
-    public int cmdFlag;
+    public int cmdFlag = 0;
     public uint channelID;
     public uint reliableSeqNum;
 };
 
-class ENetProtoAck
+struct ENetProtoAck
 {
-    public ENetProtoCmdHeader header;
-    public uint receivedReliableSeqNum;
-    public uint receivedSentTime;
+    public ENetProtoCmdHeader header = new();
+    public uint receivedReliableSeqNum = 0;
+    public uint receivedSentTime = 0;
+
+    public ENetProtoAck()
+    {
+        
+    }
 };
 
-class ENetProtoConnect
+struct ENetProtoConnect
 {
-    public ENetProtoCmdHeader header;
-    public uint outPeerID;
-    public uint inSessionID;
-    public uint outSessionID;
-    public uint mtu;
-    public uint windowSize;
-    public uint channelCount;
-    public uint inBandwidth;
-    public uint outBandwidth;
-    public uint packetThrottleInterval;
-    public uint packetThrottleAcceleration;
-    public uint packetThrottleDeceleration;
-    public uint connectID;
-    public uint data;
+    public ENetProtoCmdHeader header = new();
+    public uint outPeerID = 0;
+    public uint inSessionID = 0;
+    public uint outSessionID = 0;
+    public uint mtu = 0;
+    public uint windowSize = 0;
+    public uint channelCount = 0;
+    public uint inBandwidth = 0;
+    public uint outBandwidth = 0;
+    public uint packetThrottleInterval = 0;
+    public uint packetThrottleAcceleration = 0;
+    public uint packetThrottleDeceleration = 0;
+    public uint connectID = 0;
+    public uint data = 0;
+
+    public ENetProtoConnect()
+    {
+
+    }
 };
 
-class ENetProtoVerifyConnect
+struct ENetProtoVerifyConnect
 {
-    public ENetProtoCmdHeader header;
-    public uint outPeerID;
-    public uint inSessionID;
-    public uint outSessionID;
-    public uint mtu;
-    public uint windowSize;
-    public uint channelCount;
-    public uint inBandwidth;
-    public uint outBandwidth;
-    public uint packetThrottleInterval;
-    public uint packetThrottleAcceleration;
-    public uint packetThrottleDeceleration;
-    public uint connectID;
+    public ENetProtoCmdHeader header = new();
+    public uint outPeerID = 0;
+    public uint inSessionID = 0;
+    public uint outSessionID = 0;
+    public uint mtu = 0;
+    public uint windowSize = 0;
+    public uint channelCount = 0;
+    public uint inBandwidth = 0;
+    public uint outBandwidth = 0;
+    public uint packetThrottleInterval = 0;
+    public uint packetThrottleAcceleration = 0;
+    public uint packetThrottleDeceleration = 0;
+    public uint connectID = 0;
+
+    public ENetProtoVerifyConnect()
+    {
+
+    }
 };
 
-class ENetProtoBandwidthLimit
+struct ENetProtoBandwidthLimit
 {
-    public ENetProtoCmdHeader header;
-    public uint inBandwidth;
-    public uint outBandwidth;
+    public ENetProtoCmdHeader header = new();
+    public uint inBandwidth = 0;
+    public uint outBandwidth = 0;
+
+    public ENetProtoBandwidthLimit()
+    {
+
+    }
 };
 
-class ENetProtoThrottleConfigure
+struct ENetProtoThrottleConfigure
 {
-    public ENetProtoCmdHeader header;
-    public uint packetThrottleInterval;
-    public uint packetThrottleAcceleration;
-    public uint packetThrottleDeceleration;
+    public ENetProtoCmdHeader header = new();
+    public uint packetThrottleInterval = 0;
+    public uint packetThrottleAcceleration = 0;
+    public uint packetThrottleDeceleration = 0;
+
+    public ENetProtoThrottleConfigure()
+    {
+
+    }
 };
 
-class ENetProtoDisconnect
+struct ENetProtoDisconnect
 {
-    public ENetProtoCmdHeader header;
-    public uint data;
+    public ENetProtoCmdHeader header = new();
+    public uint data = 0;
+
+    public ENetProtoDisconnect()
+    {
+
+    }
 };
 
-class ENetProtoPing
+struct ENetProtoPing
 {
-    public ENetProtoCmdHeader header;
+    public ENetProtoCmdHeader header = new();
+
+    public ENetProtoPing()
+    {
+
+    }
 };
 
-class ENetProtoSendReliable
+struct ENetProtoSendReliable
 {
-    public ENetProtoCmdHeader header;
-    public uint dataLength;
+    public ENetProtoCmdHeader header = new();
+    public uint dataLength = 0;
+
+    public ENetProtoSendReliable()
+    {
+
+    }
 };
 
-class ENetProtoSendUnReliable
+struct ENetProtoSendUnReliable
 {
-    public ENetProtoCmdHeader header;
-    public uint unreliableSeqNum;
-    public uint dataLength;
+    public ENetProtoCmdHeader header = new();
+    public uint unreliableSeqNum = 0;
+    public uint dataLength = 0;
+
+    public ENetProtoSendUnReliable()
+    {
+
+    }
 };
 
-class ENetProtoSendUnsequenced
+struct ENetProtoSendUnsequenced
 {
-    public ENetProtoCmdHeader header;
-    public uint unseqGroup;
-    public uint dataLength;
+    public ENetProtoCmdHeader header = new();
+    public uint unseqGroup = 0;
+    public uint dataLength = 0;
+
+    public ENetProtoSendUnsequenced()
+    {
+
+    }
 };
 
-class ENetProtoSendFragment
+struct ENetProtoSendFragment
 {
-    public ENetProtoCmdHeader header;
-    public uint startSeqNum;
-    public uint dataLength;
-    public uint fragmentCount;
-    public uint fragmentNum;
-    public uint totalLength;
-    public uint fragmentOffset;
+    public ENetProtoCmdHeader header = new();
+    public uint startSeqNum = 0;
+    public uint dataLength = 0;
+    public uint fragmentCount = 0;
+    public uint fragmentNum = 0;
+    public uint totalLength = 0;
+    public uint fragmentOffset = 0;
+
+    public ENetProtoSendFragment()
+    {
+
+    }
 };
 
 class ENetProto
 {
-    public ENetProtoCmdHeader header;
-    public ENetProtoAck ack;
-    public ENetProtoConnect connect;
-    public ENetProtoVerifyConnect verifyConnect;
-    public ENetProtoDisconnect disconnect;
-    public ENetProtoPing ping;
-    public ENetProtoSendReliable sendReliable;
-    public ENetProtoSendUnReliable sendUnReliable;
-    public ENetProtoSendUnsequenced sendUnseq;
-    public ENetProtoSendFragment sendFragment;
-    public ENetProtoBandwidthLimit bandwidthLimit;
-    public ENetProtoThrottleConfigure throttleConfigure;
+    public ENetProtoCmdHeader header = new();
+    public ENetProtoAck ack = new();
+    public ENetProtoConnect connect = new();
+    public ENetProtoVerifyConnect verifyConnect = new();
+    public ENetProtoDisconnect disconnect = new();
+    public ENetProtoPing ping = new();
+    public ENetProtoSendReliable sendReliable = new();
+    public ENetProtoSendUnReliable sendUnReliable = new();
+    public ENetProtoSendUnsequenced sendUnseq = new();
+    public ENetProtoSendFragment sendFragment = new();
+    public ENetProtoBandwidthLimit bandwidthLimit = new();
+    public ENetProtoThrottleConfigure throttleConfigure = new();
 };
