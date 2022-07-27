@@ -65,7 +65,7 @@ class ENetPeer
     public List<ENetOutCmd> sentReliableCmds = new();
     public List<ENetOutCmd> sentUnreliableCmds = new();
     public List<ENetOutCmd> outCmds = new();
-    public List<ENetInCmd> dispatchedCmnds = new();
+    public List<ENetInCmd> dispatchedCmds = new();
     public bool needDispatch = false;//flags
     public uint reserved;
     public uint inUnseqGroup;
@@ -81,7 +81,7 @@ class ENetPeer
         GC.Collect();
     }
 
-    public void RemoveInCmds(List<ENetInCmd> list, ENetInCmd? startCmd, ENetInCmd? endCmd, ENetInCmd excludeCmd)
+    public void RemoveInCmds(List<ENetInCmd> list, ENetInCmd? startCmd, ENetInCmd? endCmd, ENetInCmd? excludeCmd)
     {
         if (list == null || startCmd == null || endCmd == null) return;
         if (list.Count == 0) return;
@@ -115,7 +115,7 @@ class ENetPeer
         sentReliableCmds.Clear();
         sentUnreliableCmds.Clear();
         outCmds.Clear();
-        dispatchedCmnds.Clear();
+        dispatchedCmds.Clear();
 
         channels = null;
     }
@@ -147,21 +147,15 @@ class ENetPeer
     public void DispatchInUnreliableCmds(ENetChannel channel, ENetInCmd? queuedCmd)
     {
         if (channel.inUnreliableCmds.Count == 0) return;
-        if (channel.inUnreliableCmds == null) return;
 
         ENetInCmd startCmd = channel.inUnreliableCmds.First();
-        ENetInCmd droppedCmd = startCmd;
+        ENetInCmd? droppedCmd = startCmd;
         ENetInCmd currentCmd = startCmd;
 
-        if (startCmd == null || currentCmd == null) return;
-
-        for (;
-             currentCmd != null && !ReferenceEquals(currentCmd, channel.inUnreliableCmds.Last?.Next);
-             currentCmd = currentCmd.Next)
+        int i;
+        for (i = 0; i < channel.inUnreliableCmds.Count; i++)
         {
-            if (currentCmd == null) break;
-
-            ENetInCmd inCmd = currentCmd.Value;
+            ENetInCmd inCmd = currentCmd;
 
             if ((inCmd.cmdHeader.cmdFlag & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.SendUnseq)
                 continue;
@@ -176,7 +170,10 @@ class ENetPeer
 
                 if (startCmd != currentCmd)
                 {
-                    dispatchedCmnds.AddLastRange(startCmd, currentCmd.Previous);
+                    for (int j = 0; j < i; j++)
+                    {
+                        dispatchedCmds.Add(channel.inUnreliableCmds[j]);
+                    }
 
                     if (!needDispatch)
                     {
@@ -187,8 +184,8 @@ class ENetPeer
                     droppedCmd = currentCmd;
                 }
                 else
-                if (droppedCmd != currentCmd)
-                    droppedCmd = currentCmd.Previous;
+                if (droppedCmd != currentCmd && i > 0)
+                    droppedCmd = channel.inUnreliableCmds[i-1];
             }
             else
             {
@@ -199,11 +196,21 @@ class ENetPeer
                 if (reliableWindow >= currentWindow && reliableWindow < currentWindow + (ushort)ENetDef.PeerFreeReliableWindows - 1)
                     break;
 
-                droppedCmd = currentCmd.Next;
+                if (i < channel.inUnreliableCmds.Count)
+                {
+                    droppedCmd = channel.inUnreliableCmds[i + 1];
+                }
+                else
+                {
+                    droppedCmd = null;
+                }
 
                 if (startCmd != currentCmd)
                 {
-                    dispatchedCmnds.AddLastRange(startCmd, currentCmd.Previous);
+                    for (int j = 0; j < i; j++)
+                    {
+                        dispatchedCmds.Add(channel.inUnreliableCmds[j]);
+                    }
 
                     if (!needDispatch)
                     {
@@ -216,7 +223,10 @@ class ENetPeer
 
         if (startCmd != currentCmd)
         {
-            dispatchedCmnds.AddLastRange(startCmd, currentCmd?.Previous);
+            for (int j = 0; j < i; j++)
+            {
+                dispatchedCmds.Add(channel.inUnreliableCmds[j]);
+            }
 
             if (!needDispatch)
             {
@@ -227,37 +237,42 @@ class ENetPeer
             droppedCmd = currentCmd;
         }
 
-        RemoveInCmds(channel.inUnreliableCmds, channel.inUnreliableCmds.First?.Value, droppedCmd?.Value, queuedCmd);
+        RemoveInCmds(channel.inUnreliableCmds, startCmd, droppedCmd, queuedCmd);
     }
 
     public void DispatchInReliableCmds(ENetChannel channel, ENetInCmd? queuedCmd)
     {
-        ListNode<ENetInCmd>? currentCmd = channel.inReliableCmds.First;
-        ListNode<ENetInCmd>? startCmd = currentCmd;
-        if (startCmd == null) return;
+        if (channel.inReliableCmds.Count == 0) return;
 
-        for (;
-             currentCmd != null;
-             currentCmd = currentCmd?.Next)//Last.Next不知道最后一个会不会执行
+        ENetInCmd currentCmd = channel.inReliableCmds[0];
+        ENetInCmd startCmd = currentCmd;
+
+        int i = 0;
+        for (i = 0; i < channel.inReliableCmds.Count; i++)
         {
-            if (currentCmd.Value.fragmentsRemaining > 0 ||
-                currentCmd.Value.reliableSeqNum  != channel.inReliableSeqNum + 1)
+            currentCmd = channel.inReliableCmds[i];
+
+            if (currentCmd.fragmentsRemaining > 0 ||
+                currentCmd.reliableSeqNum  != channel.inReliableSeqNum + 1)
                 break;
 
-            channel.inReliableSeqNum = currentCmd.Value.reliableSeqNum ;
+            channel.inReliableSeqNum = currentCmd.reliableSeqNum ;
 
-            if (currentCmd.Value.fragmentCount > 0)
-                channel.inReliableSeqNum += currentCmd.Value.fragmentCount - 1;
+            if (currentCmd.fragmentCount > 0)
+                channel.inReliableSeqNum += currentCmd.fragmentCount - 1;
         }
 
         if (currentCmd == null) return;
 
         channel.inUnreliableSeqNum = 0;
-        dispatchedCmnds.AddLastRange(startCmd, currentCmd.Previous);
+        for (int j = 0; j < i; j++)
+        {
+            dispatchedCmds.Add(channel.inReliableCmds[j]);
+        }
 
         if (!this.needDispatch)
         {
-            ENetHost.Instance.dispatchQueue.AddLast(this);
+            ENetHost.Instance.dispatchQueue.Add(this);
             needDispatch = true;
         }
 
@@ -285,7 +300,7 @@ class ENetPeer
 
         this.outDataTotal += Marshal.SizeOf<ENetAckCmd>();
 
-        acknowledgements.AddLast(ack);
+        acknowledgements.Add(ack);
 
     }
 
@@ -315,7 +330,7 @@ class ENetPeer
             outCmd.reliableSeqNum = outReliableSeqNum;
             outCmd.unreliableSeqNum = 0;
         }
-        else
+        else if (channels != null)
         {
             ENetChannel channel = channels[outCmd.cmdHeader.channelID];
 
@@ -345,7 +360,6 @@ class ENetPeer
                     outCmd.unreliableSeqNum = channel.outUnreliableSeqNum;
                 }
             }
-
         }
 
         outCmd.sendAttempts = 0;
@@ -367,7 +381,7 @@ class ENetPeer
             default:
                 break;
         }
-        outCmds.AddLast(outCmd);
+        outCmds.Add(outCmd);
     }
 
     public ENetInCmd? QueueInCmd(ENetProtoCmdHeader cmdHeader, byte[]? data, uint dataLength, int flags, uint fragmentCount, uint sendUnreliableSeqNum=0)
@@ -379,7 +393,7 @@ class ENetPeer
         uint unreliableSeqNum = 0, reliableSeqNum = 0;
         uint reliableWindow, currentWindow;
         ENetInCmd inCmd;
-        ListNode<ENetInCmd>? currCmd;
+        ENetInCmd? currCmd = null;
         ENetPacket packet;
 
         if (state == ENetPeerState.DisconnectLater)
@@ -406,11 +420,10 @@ class ENetPeer
                 if (reliableSeqNum == channel.inReliableSeqNum)
                     goto discardcmd;
 
-                for (currCmd = channel.inReliableCmds.Last;
-                     currCmd != null;
-                     currCmd = currCmd.Previous)
+                for (int i = channel.inReliableCmds.Count; i >= 0; i--)
                 {
-                    inCmd = currCmd.Value;
+                    currCmd = channel.inReliableCmds[i];
+                    inCmd = currCmd;
 
                     if (reliableSeqNum >= channel.inReliableSeqNum)
                     {
@@ -439,28 +452,27 @@ class ENetPeer
                     unreliableSeqNum <= channel.inUnreliableSeqNum)
                     goto discardcmd;
 
-                for (currCmd = channel.inUnreliableCmds.Last;
-                     currCmd != null;
-                     currCmd = currCmd.Previous)
+                for (int i = channel.inUnreliableCmds.Count; i >= 0; i--)
                 {
-                    inCmd = currCmd.Value;
+                    currCmd = channel.inReliableCmds[i];
+                    inCmd = currCmd;
 
                     if ((cmdHeader.cmdFlag & (int)ENetProtoCmdType.Mask) == (int)ENetProtoCmdType.SendUnreliable)
                         continue;
 
                     if (reliableSeqNum >= channel.inReliableSeqNum)
                     {
-                        if (inCmd.reliableSeqNum  < channel.inReliableSeqNum)
+                        if (inCmd.reliableSeqNum < channel.inReliableSeqNum)
                             continue;
                     }
                     else
-                    if (inCmd.reliableSeqNum  >= channel.inReliableSeqNum)
+                    if (inCmd.reliableSeqNum >= channel.inReliableSeqNum)
                         break;
 
-                    if (inCmd.reliableSeqNum  < reliableSeqNum)
+                    if (inCmd.reliableSeqNum < reliableSeqNum)
                         break;
 
-                    if (inCmd.reliableSeqNum  > reliableSeqNum)
+                    if (inCmd.reliableSeqNum > reliableSeqNum)
                         continue;
 
                     if (inCmd.unreliableSeqNum <= unreliableSeqNum)
@@ -474,7 +486,7 @@ class ENetPeer
                 break;
 
             case (int)ENetProtoCmdType.SendUnseq:
-                currCmd = channel.inUnreliableCmds.Last;
+                currCmd = channel.inUnreliableCmds.Last();
                 break;
 
             default:
@@ -508,7 +520,7 @@ class ENetPeer
 
         if (currCmd != null)
         {
-            channel.inReliableCmds.AddAfter(currCmd, inCmd);
+            channel.inReliableCmds.Insert(channel.inReliableCmds.IndexOf(currCmd)+1, inCmd);
         }
 
         switch (cmdHeader.cmdFlag & (int)ENetProtoCmdType.Mask)
@@ -547,6 +559,8 @@ class ENetPeer
         {
             return -1;
         }
+
+        if (channels == null) return -1;
 
         channel = channels[Convert.ToInt32(channelID)];
         fragmentLength = mtu - Convert.ToUInt32(Marshal.SizeOf(new ENetProtoHeader()) + Marshal.SizeOf(new ENetProtoSendFragment()));
@@ -647,16 +661,19 @@ class ENetPeer
            ENetInCmd inCmd;
            ENetPacket? packet;
    
-           if (this.dispatchedCmnds.Count == 0 || this.dispatchedCmnds.First == null)
+           if (this.dispatchedCmds == null || this.dispatchedCmds.Count == 0)
              return null;
 
-           inCmd = this.dispatchedCmnds.First.Value;
+           inCmd = this.dispatchedCmds.First();
 
            channelID = inCmd.cmdHeader.channelID;
 
            packet = inCmd.packet;
 
-           this.totalWaitingData -= packet.DataLength;
+        if (packet != null)
+        {
+            this.totalWaitingData -= packet.DataLength;
+        }
         
         return packet;
     }

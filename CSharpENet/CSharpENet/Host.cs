@@ -122,7 +122,7 @@ class ENetHost : Singleton<ENetHost>
             currentPeer.sentReliableCmds.Clear();
             currentPeer.sentUnreliableCmds.Clear();
             currentPeer.outCmds.Clear();
-            currentPeer.dispatchedCmnds.Clear();
+            currentPeer.dispatchedCmds.Clear();
 
             currentPeer.Reset();
         }
@@ -532,7 +532,7 @@ class ENetHost : Singleton<ENetHost>
                     return 1;
 
                 case ENetPeerState.Connected:
-                    if (peer.dispatchedCmnds.Count == 0)
+                    if (peer.dispatchedCmds.Count == 0)
                         continue;
 
                     if (@event != null)
@@ -545,7 +545,7 @@ class ENetHost : Singleton<ENetHost>
                         @event.peer = peer;
                     }
 
-                    if (peer.dispatchedCmnds.Count != 0)
+                    if (peer.dispatchedCmds.Count != 0)
                     {
                         peer.needDispatch = true;
 
